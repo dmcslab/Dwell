@@ -51,7 +51,10 @@ Password: CyberRans!Change123
 Change the password via the Admin panel after first login.
 
 ---
+## Screenshot
+<img width="1210" height="1209" alt="image" src="https://github.com/user-attachments/assets/03d67c7b-8126-4321-93f3-087149623216" />
 
+---
 ## What Is This?
 
 Cyber-Rans puts you in the middle of an active ransomware incident. You're an analyst — not reading a case study, but making real-time decisions:
