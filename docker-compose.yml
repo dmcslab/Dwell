@@ -1,0 +1,108 @@
+networks:
+  cyber-rans_net:
+    name: cyber-rans_net
+    driver: bridge
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cyber-rans_db
+    networks: [cyber-rans_net]
+    environment:
+      POSTGRES_USER:     cyber
+      POSTGRES_PASSWORD: cyber
+      POSTGRES_DB:       cyber-rans
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cyber -d cyber-rans"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: cyber-rans_redis
+    networks: [cyber-rans_net]
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cyber-rans_backend
+    networks: [cyber-rans_net]
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    container_name: cyber-rans_orchestrator
+    networks: [cyber-rans_net]
+    environment:
+      REDIS_URL:           redis://redis:6379/0
+      WORKER_IMAGE:        cyber-rans_scenario_worker:latest
+      DOCKER_NETWORK:      cyber-rans_net
+      WORKER_PORT:         "8765"
+      MAX_WORKERS:         "50"
+      WORKER_IDLE_TIMEOUT: "3600"
+      CLEANUP_INTERVAL:    "60"
+      WORKER_DATABASE_URL: postgresql+asyncpg://cyber:cyber@db:5432/cyber-rans
+      WORKER_REDIS_URL:    redis://redis:6379/0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./orchestrator:/app
+    ports:
+      - "9000:9000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cyber-rans_frontend
+    networks: [cyber-rans_net]
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_APP_BASE_URL=http://localhost:5173
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
