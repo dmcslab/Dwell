@@ -88,8 +88,8 @@ export function JoinPage({ sessionId, onJoined, onBack }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-6">
-      <div className="w-full max-w-xl">
+    <div className="min-h-screen bg-gray-950 bg-data-grid flex items-center justify-center p-6">
+      <div className="w-full max-w-xl animate-enter">
 
         {/* Header */}
         <button onClick={onBack} className="text-gray-500 hover:text-gray-300 text-sm mb-6 flex items-center gap-1">
@@ -97,9 +97,9 @@ export function JoinPage({ sessionId, onJoined, onBack }: Props) {
         </button>
 
         <div className="flex items-center gap-3 mb-6">
-          <span className="text-2xl">🔗</span>
+          <span className="text-2xl filter drop-shadow-lg">🔗</span>
           <div>
-            <h2 className="text-white font-bold text-xl">Join Session</h2>
+            <h2 className="text-white font-display font-bold text-xl tracking-wider">JOIN SESSION</h2>
             <p className="text-gray-500 text-xs font-mono mt-0.5">{sessionId}</p>
           </div>
         </div>
@@ -244,7 +244,7 @@ export function JoinPage({ sessionId, onJoined, onBack }: Props) {
             <button
               onClick={handleJoin}
               disabled={joining || !playerName.trim() || !pickedRole}
-              className="w-full py-3 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors text-sm"
+              className="w-full py-3 bg-cyan-800 hover:bg-cyan-700 border border-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all text-sm font-ui tracking-wide"
             >
               {joining
                 ? 'Joining…'

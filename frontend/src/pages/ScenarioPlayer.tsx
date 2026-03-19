@@ -24,9 +24,9 @@ function DiffBadge({ level }: { level?: string }) {
 
 function FeedbackPanel({ isCorrect, consequence, technicalExplanation, actionText, attemptsRemaining, maxAttempts, onContinue, gameOver, branched, branchStageName }: { isCorrect: boolean; consequence: string; technicalExplanation: string; actionText: string; attemptsRemaining: number; maxAttempts: number; onContinue: () => void; gameOver: boolean; branched?: boolean; branchStageName?: string }) {
   return (
-    <div className="flex flex-col gap-5 p-6 h-full overflow-y-auto">
-      <div className={`rounded-lg p-4 border ${isCorrect ? 'bg-emerald-950 border-emerald-700' : 'bg-red-950 border-red-800'}`}>
-        <p className={`font-bold text-base mb-1 ${isCorrect ? 'text-emerald-300' : 'text-red-300'}`}>{isCorrect ? '✓ Correct Action' : '✗ Incorrect Action'}</p>
+    <div className="flex flex-col gap-5 p-6 h-full overflow-y-auto animate-enter">
+      <div className={`rounded-xl p-4 border ${isCorrect ? 'bg-emerald-950 border-emerald-700' : 'bg-red-950 border-red-800'}`}>
+        <p className={`font-display font-bold text-base mb-1 tracking-wider ${isCorrect ? 'text-emerald-300' : 'text-red-300'}`}>{isCorrect ? '✓ Correct Action' : '✗ Incorrect Action'}</p>
         <p className="text-gray-300 text-sm italic">"{actionText}"</p>
       </div>
       {branched && (
@@ -46,7 +46,7 @@ function FeedbackPanel({ isCorrect, consequence, technicalExplanation, actionTex
         <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-2">Consequence</p>
         <p className="text-gray-200 text-sm leading-relaxed">{consequence}</p>
       </div>
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+      <div className="bg-gray-800/70 border border-gray-700/70 rounded-xl p-4">
         <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-2">Technical Explanation</p>
         <p className="text-gray-300 text-sm leading-relaxed">{technicalExplanation}</p>
       </div>
@@ -57,7 +57,7 @@ function FeedbackPanel({ isCorrect, consequence, technicalExplanation, actionTex
         </div>
       )}
       {!gameOver && (
-        <button onClick={onContinue} className="mt-8 w-full py-3 bg-gray-700 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors text-sm">
+        <button onClick={onContinue} className="mt-8 w-full py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-cyan-800 text-white font-semibold rounded-xl transition-all text-sm font-ui tracking-wide">
           {isCorrect ? 'Next Stage →' : 'Retry Stage →'}
         </button>
       )}
@@ -116,8 +116,8 @@ export function ScenarioPlayer({ scenarioId, initialSessionId, initialPlayerName
   }
 
   if (!setupDone) return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-6">
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 w-full max-w-md">
+    <div className="min-h-screen bg-gray-950 bg-data-grid flex items-center justify-center p-6">
+      <div className="bg-gray-900/90 border border-gray-700 rounded-2xl p-8 w-full max-w-md shadow-[0_0_40px_-10px_rgb(0_0_0/0.8)] backdrop-blur-sm animate-enter">
         <button onClick={onBack} className="text-gray-500 hover:text-gray-300 text-sm mb-6">← Back</button>
         <h2 className="text-white font-bold text-xl mb-1">Start Simulation</h2>
         <p className="text-gray-400 text-sm mb-6">{scenarioMeta?.name ?? `Scenario #${scenarioId}`}</p>
@@ -156,12 +156,12 @@ export function ScenarioPlayer({ scenarioId, initialSessionId, initialPlayerName
   const dot       = ws.status === 'connected' ? 'bg-emerald-500' : ws.status === 'connecting' ? 'bg-amber-500' : 'bg-red-500'
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
+    <div className="min-h-screen bg-gray-950 flex flex-col" style={{backgroundImage: "var(--scanline, none)"}}>
 
-      <div className="border-b border-gray-800 px-4 py-3 flex items-center gap-3 bg-gray-900 shrink-0">
-        <button onClick={onBack} className="text-gray-500 hover:text-gray-300 text-sm">← Scenarios</button>
-        <div className="h-4 w-px bg-gray-700" />
-        <span className="text-white text-sm font-semibold truncate">{scenario?.name ?? 'Connecting…'}</span>
+      <div className="border-b border-gray-800 px-4 py-2.5 flex items-center gap-3 bg-gray-900/95 backdrop-blur-sm shrink-0 sticky top-0 z-10">
+        <button onClick={onBack} className="text-gray-500 hover:text-cyan-400 text-xs font-mono tracking-wider transition-colors">← Scenarios</button>
+        <div className="h-4 w-px bg-gray-700/60" />
+        <span className="text-white text-sm font-display font-semibold truncate tracking-wide">{scenario?.name ?? 'Connecting…'}</span>
         {scenario && <DiffBadge level={scenario.difficulty_level} />}
         {ws.clientId && gameState?.roles?.[ws.clientId] && (
           <span className="text-xs font-mono border rounded px-2 py-0.5 border-gray-700 text-gray-400">{roleDef?.icon} {roleDef?.label}</span>
@@ -169,7 +169,7 @@ export function ScenarioPlayer({ scenarioId, initialSessionId, initialPlayerName
         <div className="ml-auto flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${dot}`} />
-            <span className="text-xs text-gray-500">{ws.status}</span>
+            <span className="text-xs text-gray-500 font-mono tracking-wider uppercase">{ws.status}</span>
           </div>
           <button onClick={() => setShowShare(v => !v)} className="text-xs text-gray-400 hover:text-cyan-400 border border-gray-700 rounded px-2 py-1">Share</button>
         </div>
@@ -278,8 +278,8 @@ export function ScenarioPlayer({ scenarioId, initialSessionId, initialPlayerName
 
             {scenario && gameState && !showFeedback && (phase === 'complete' || phase === 'failed') && (
               <div className="p-6">
-                <div className={`rounded-lg p-5 border text-center ${phase === 'complete' ? 'bg-emerald-950 border-emerald-700' : 'bg-red-950 border-red-800'}`}>
-                  <p className={`text-2xl font-bold mb-1 ${phase === 'complete' ? 'text-emerald-300' : 'text-red-300'}`}>
+                <div className={`rounded-2xl p-8 border text-center animate-enter ${phase === 'complete' ? 'bg-emerald-950 border-emerald-700' : 'bg-red-950 border-red-800'}`}>
+                  <p className={`text-2xl font-display font-bold mb-2 tracking-wider ${phase === 'complete' ? 'text-emerald-300' : 'text-red-300'}`}>
                     {phase === 'complete' ? '✓ Simulation Complete' : '✗ Simulation Failed'}
                   </p>
                   <p className="text-gray-400 text-sm">Preparing debrief report…</p>
@@ -293,11 +293,11 @@ export function ScenarioPlayer({ scenarioId, initialSessionId, initialPlayerName
         <div className="w-1/2 border-l border-gray-800 flex flex-col bg-gray-900 shrink-0">
 
           <div className="shrink-0 flex border-b border-gray-800">
-            <button onClick={() => setRightTab('siem')} className={`flex-1 px-3 py-2 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 ${rightTab === 'siem' ? 'text-cyan-400 border-b-2 border-cyan-500 bg-gray-800/50' : 'text-gray-500 hover:text-gray-300'}`}>
+            <button onClick={() => setRightTab('siem')} className={`flex-1 px-3 py-2 text-xs font-mono tracking-wider font-semibold transition-colors flex items-center justify-center gap-1.5 ${rightTab === 'siem' ? 'text-cyan-400 border-b-2 border-cyan-500 bg-gray-800/50' : 'text-gray-500 hover:text-gray-300'}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${phase === 'deciding' ? 'bg-emerald-500 animate-pulse' : 'bg-gray-600'}`} />
               SIEM Feed
             </button>
-            <button onClick={() => setRightTab('activity')} className={`flex-1 px-3 py-2 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 ${rightTab === 'activity' ? 'text-cyan-400 border-b-2 border-cyan-500 bg-gray-800/50' : 'text-gray-500 hover:text-gray-300'}`}>
+            <button onClick={() => setRightTab('activity')} className={`flex-1 px-3 py-2 text-xs font-mono tracking-wider font-semibold transition-colors flex items-center justify-center gap-1.5 ${rightTab === 'activity' ? 'text-cyan-400 border-b-2 border-cyan-500 bg-gray-800/50' : 'text-gray-500 hover:text-gray-300'}`}>
               Activity Log
               {ws.activityLog.length > 0 && (
                 <span className="bg-gray-700 text-gray-400 text-[9px] font-mono rounded-full px-1.5 py-0.5">{ws.activityLog.length}</span>

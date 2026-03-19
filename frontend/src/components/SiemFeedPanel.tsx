@@ -136,14 +136,14 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter }: 
   const highCount     = lines.filter(l => l.severity === 'HIGH').length
 
   return (
-    <div className="flex flex-col h-full bg-gray-950 overflow-hidden">
+    <div className="flex flex-col h-full bg-gray-950/90 overflow-hidden">
 
       {/* Header */}
       <div className="shrink-0 px-3 py-2 border-b border-gray-800 bg-gray-900">
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${paused ? 'bg-gray-600' : panicMode ? 'bg-red-500 animate-pulse' : 'bg-emerald-500 animate-pulse'}`} />
-            <span className="text-xs text-gray-300 font-semibold font-mono">SIEM Feed</span>
+            <span className="text-xs text-gray-300 font-semibold font-mono tracking-widest">SIEM FEED</span>
             {roleFilter && roleFilter.length > 0 && (
               <span className="text-[9px] font-mono text-gray-500 border border-gray-700 rounded px-1">
                 {roleFilter.join(' · ')}

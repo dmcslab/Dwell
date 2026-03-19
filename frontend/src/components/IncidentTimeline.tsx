@@ -138,7 +138,7 @@ function StageNode({ stage, index, status, timestamp, wrongCount, isLast }: Stag
       {/* Node */}
       <div className="relative flex flex-col items-center">
         {/* Step number badge */}
-        <div className="text-[9px] text-gray-600 font-mono mb-1">{String(index + 1).padStart(2,'0')}</div>
+        <div className="text-[9px] text-gray-600 font-mono mb-1 tracking-wider">{String(index + 1).padStart(2,'0')}</div>
 
         {/* Main circle */}
         <div
@@ -150,7 +150,7 @@ function StageNode({ stage, index, status, timestamp, wrongCount, isLast }: Stag
 
         {/* Active pulse ring */}
         {isActive && (
-          <div className="absolute inset-0 rounded-full border-2 border-cyan-400/40 animate-ping" />
+          <div className="absolute inset-0 rounded-full border-2 border-cyan-400/50 animate-ping" />
         )}
       </div>
 
@@ -217,9 +217,9 @@ function ProgressBar({ completed, total }: { completed: number; total: number })
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1 bg-gray-800 rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
         <div
-          className="h-full bg-cyan-600 rounded-full transition-all duration-700"
+          className="h-full bg-cyan-500 rounded-full transition-all duration-700"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -257,13 +257,13 @@ function IncidentTimelineInner({
   const completed = completedIds.length
 
   return (
-    <div className="bg-gray-900 border-b border-gray-800 px-4 py-3">
+    <div className="bg-gray-900/80 border-b border-gray-800 px-4 py-3 backdrop-blur-sm">
 
       {/* Top row: scenario name + progress bar */}
       <div className="flex items-center gap-4 mb-3">
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] text-gray-500 font-mono uppercase tracking-widest mb-0.5">Incident Timeline</p>
-          <p className="text-xs text-gray-300 font-semibold truncate">{scenarioName}</p>
+          <p className="text-[9px] text-gray-600 font-mono uppercase tracking-widest mb-0.5">INCIDENT TIMELINE</p>
+          <p className="text-xs text-gray-300 font-semibold truncate font-ui">{scenarioName}</p>
         </div>
         <div className="w-48 shrink-0">
           <ProgressBar completed={completed} total={total} />

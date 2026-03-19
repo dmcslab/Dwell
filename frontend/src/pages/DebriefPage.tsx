@@ -31,7 +31,7 @@ export function DebriefPage({ summary, scenario, onPlayAgain, onBack }: Props) {
   })()
 
   return (
-    <div className="min-h-screen bg-gray-950 p-4 md:p-8">
+    <div className="min-h-screen bg-gray-950 bg-data-grid p-4 md:p-8">
       <div className="max-w-3xl mx-auto">
 
         {/* Outcome banner */}
@@ -40,7 +40,7 @@ export function DebriefPage({ summary, scenario, onPlayAgain, onBack }: Props) {
             ? 'bg-emerald-950 border-emerald-700'
             : 'bg-red-950 border-red-800'
         }`}>
-          <p className={`text-4xl font-extrabold tracking-tight mb-1 ${passed ? 'text-emerald-300' : 'text-red-300'}`}>
+          <p className={`text-3xl font-display font-bold tracking-wider mb-1 ${passed ? 'text-emerald-300' : 'text-red-300'}`}>
             {passed ? '✓ Simulation Complete' : '✗ Simulation Failed'}
           </p>
           <p className="text-gray-400 text-sm">{scenario.name}</p>
@@ -55,8 +55,8 @@ export function DebriefPage({ summary, scenario, onPlayAgain, onBack }: Props) {
             { label: 'Stages Cleared', value: summary.phases_completed.length,  color: 'text-cyan-400' },
           ].map(({ label, value, color }) => (
             <div key={label} className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
-              <p className={`text-3xl font-bold ${color}`}>{value}</p>
-              <p className="text-gray-500 text-xs mt-1">{label}</p>
+              <p className={`text-3xl font-display font-bold ${color}`}>{value}</p>
+              <p className="text-gray-500 text-xs mt-1 font-mono tracking-wider uppercase">{label}</p>
             </div>
           ))}
         </div>

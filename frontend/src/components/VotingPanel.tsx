@@ -122,10 +122,10 @@ export function VotingPanel({
   }
 
   return (
-    <div className="flex flex-col gap-4 p-6 h-full overflow-y-auto">
+    <div className="flex flex-col gap-4 p-6 h-full overflow-y-auto animate-enter">
 
       {/* Phase + attempts row */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
         <div className="flex items-center gap-2 flex-wrap">
           <IrPhaseBadge phase={stage.irPhase} />
           {/* Role badge */}
@@ -138,7 +138,7 @@ export function VotingPanel({
 
       {/* Role instruction banner */}
       {!isSubmitter && (
-        <div className="bg-sky-950 border border-sky-800 rounded-lg px-4 py-2.5 flex items-center gap-2">
+        <div className="bg-sky-950/60 border border-sky-800/70 rounded-xl px-4 py-2.5 flex items-center gap-2">
           <span className="text-sky-400 text-lg">🎯</span>
           <p className="text-sky-300 text-xs leading-snug">
             <span className="font-bold">You are suggesting.</span> The IR Lead will make the final call.
@@ -147,7 +147,7 @@ export function VotingPanel({
         </div>
       )}
       {role === 'ir_lead' && suggestions.length > 0 && (
-        <div className="bg-cyan-950 border border-cyan-800 rounded-lg px-4 py-2.5 flex items-center gap-2">
+        <div className="bg-cyan-950/60 border border-cyan-800/70 rounded-xl px-4 py-2.5 flex items-center gap-2">
           <span className="text-cyan-400 text-lg">📡</span>
           <p className="text-cyan-300 text-xs">
             <span className="font-bold">Team suggestions visible</span> — review before submitting.
@@ -183,7 +183,7 @@ export function VotingPanel({
         {hasHint && !myHint && (
           <button
             onClick={onUseHint}
-            className="text-xs text-amber-500 hover:text-amber-300 border border-amber-800 hover:border-amber-600 rounded px-2 py-1 transition-colors flex items-center gap-1"
+            className="text-xs text-amber-500 hover:text-amber-300 border border-amber-800/60 hover:border-amber-600 bg-amber-950/30 hover:bg-amber-950/50 rounded-lg px-3 py-1.5 transition-all flex items-center gap-1.5 font-mono"
           >
             💡 Use hint <span className="text-amber-700">(1 remaining)</span>
           </button>
@@ -205,7 +205,7 @@ export function VotingPanel({
               key={i}
               disabled={deciding}
               onClick={() => handleOptionClick(i)}
-              className={`flex flex-col text-left w-full border rounded-xl p-4 transition-all group disabled:opacity-50 disabled:cursor-wait
+              className={`flex flex-col text-left w-full border rounded-xl p-4 transition-all duration-200 group disabled:opacity-50 disabled:cursor-wait
                 ${iMySuggested
                   ? 'bg-sky-950 border-sky-600 ring-1 ring-sky-500/40'
                   : 'bg-gray-800 border-gray-700 hover:border-cyan-600 hover:bg-gray-750'
@@ -213,14 +213,14 @@ export function VotingPanel({
             >
               <div className="flex items-start gap-3">
                 {/* Label */}
-                <span className={`shrink-0 w-6 h-6 rounded text-xs font-bold flex items-center justify-center transition-colors
+                <span className={`shrink-0 w-6 h-6 rounded text-xs font-bold font-mono flex items-center justify-center transition-colors
                   ${iMySuggested
                     ? 'bg-sky-700 text-white'
                     : 'bg-gray-700 group-hover:bg-cyan-800 text-gray-300 group-hover:text-white'
                   }`}>
                   {OPTION_LABELS[i]}
                 </span>
-                <span className="text-gray-200 text-sm leading-snug group-hover:text-white transition-colors flex-1">
+                <span className="text-gray-200 text-sm leading-snug group-hover:text-white transition-colors flex-1 font-ui">
                   {opt.actionText}
                 </span>
                 {/* Suggestion count badge */}
@@ -249,7 +249,7 @@ export function VotingPanel({
 
       {/* Waiting indicator for non-submitters */}
       {!isSubmitter && (
-        <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+        <div className="flex items-center gap-2 text-xs text-gray-500 mt-1 font-mono">
           <span className="w-1.5 h-1.5 rounded-full bg-cyan-600 animate-pulse" />
           Waiting for IR Lead to submit the final decision…
         </div>
@@ -257,7 +257,7 @@ export function VotingPanel({
 
       {/* Branch warning — shown when wrong options carry branching consequences */}
       {stage.options.some(o => o.failBranchStageId) && (
-        <div className="flex items-center gap-2 text-xs text-amber-700 mt-2 border border-amber-900 rounded-lg px-3 py-2 bg-amber-950/30">
+        <div className="flex items-center gap-2 text-xs text-amber-600 mt-2 border border-amber-900/60 rounded-xl px-3 py-2 bg-amber-950/40">
           <span>⚡</span>
           <span>Some wrong answers will branch the scenario — consequences affect all remaining stages.</span>
         </div>

@@ -1,14 +1,12 @@
 import { useState } from 'react'
-import { ErrorBoundary } from './components/ErrorBoundary'
 import { ScenarioSelector } from './pages/ScenarioSelector'
 import { ScenarioPlayer }   from './pages/ScenarioPlayer'
 import { JoinPage }         from './pages/JoinPage'
 import { DebriefPage }      from './pages/DebriefPage'
 import { AdminDashboard }   from './pages/AdminDashboard'
+import { useTheme }         from './contexts/ThemeContext'
 import type { SessionSummary, ScenarioFull } from './types/scenario'
 import type { PlayerRole } from './types/scenario'
-
-// ── Session storage key ───────────────────────────────────────────────────────
 
 const SESSION_KEY = 'cr_active_session'
 
@@ -23,19 +21,15 @@ interface SavedSession {
 function saveSession(s: SavedSession) {
   try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(s)) } catch {}
 }
-
 function loadSession(): SavedSession | null {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY)
     return raw ? JSON.parse(raw) : null
   } catch { return null }
 }
-
 function clearSession() {
   try { sessionStorage.removeItem(SESSION_KEY) } catch {}
 }
-
-// ── Route types ───────────────────────────────────────────────────────────────
 
 type Route =
   | { name: 'selector' }
@@ -44,34 +38,35 @@ type Route =
   | { name: 'debrief'; summary: SessionSummary; scenario: ScenarioFull }
   | { name: 'admin' }
 
-// ── App ───────────────────────────────────────────────────────────────────────
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme()
+  return (
+    <button
+      onClick={toggleTheme}
+      className="theme-toggle"
+      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+      aria-label="Toggle theme"
+    >
+      <div className="theme-toggle-knob">
+        {theme === 'dark' ? '☾' : '☀'}
+      </div>
+    </button>
+  )
+}
 
 export default function App() {
   const [route, setRoute] = useState<Route>(() => {
-    // 1. Check for /join/:id hash (share link)
     const hash = window.location.hash
     const joinMatch = hash.match(/^#\/join\/([^/]+)$/)
     if (joinMatch) return { name: 'join', sessionId: joinMatch[1] }
-
-    // 2. Check for persisted active session (page refresh recovery)
     const saved = loadSession()
     if (saved) return { name: 'player', ...saved, joinRole: saved.joinRole as PlayerRole | undefined }
-
-    // 3. Default: scenario selector
     return { name: 'selector' }
   })
 
   const go = (r: Route) => {
-    // Persist or clear session state on navigation
     if (r.name === 'player') {
-      saveSession({
-        scenarioId: r.scenarioId,
-        sessionId:  r.sessionId,
-        playerName: r.playerName,
-        shareLink:  r.shareLink,
-        joinRole:   r.joinRole,
-      })
-      // Update URL hash so browser Back button works
+      saveSession({ scenarioId: r.scenarioId, sessionId: r.sessionId, playerName: r.playerName, shareLink: r.shareLink, joinRole: r.joinRole })
       window.location.hash = `#/play/${r.sessionId}`
     } else {
       clearSession()
@@ -82,8 +77,7 @@ export default function App() {
   }
 
   return (
-    <ErrorBoundary>
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen bg-gray-950 font-ui">
       {route.name === 'selector' && (
         <ScenarioSelector
           onSelect={() => {}}
@@ -128,17 +122,19 @@ export default function App() {
         <AdminDashboard onBack={() => go({ name: 'selector' })} />
       )}
 
-      {/* Admin button — always visible except on admin page */}
-      {route.name !== 'admin' && (
-        <button
-          onClick={() => go({ name: 'admin' })}
-          className="fixed bottom-4 right-4 px-3 py-1.5 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-400 hover:text-white text-xs rounded-lg transition-colors z-50"
-          title="Admin dashboard"
-        >
-          ⚙ Admin
-        </button>
-      )}
+      {/* Global floating controls */}
+      <div className="fixed bottom-4 right-4 flex items-center gap-2 z-50">
+        <ThemeToggle />
+        {route.name !== 'admin' && (
+          <button
+            onClick={() => go({ name: 'admin' })}
+            className="px-3 py-1.5 bg-gray-800 border border-gray-700 hover:bg-gray-700 hover:border-gray-600 text-gray-400 hover:text-white text-xs rounded-lg transition-all font-mono"
+            title="Admin dashboard"
+          >
+            ⚙
+          </button>
+        )}
+      </div>
     </div>
-    </ErrorBoundary>
   )
 }

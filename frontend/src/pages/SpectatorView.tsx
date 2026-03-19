@@ -166,8 +166,8 @@ function PlayerRoster({
   }))
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-      <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-3">
+    <div className="bg-gray-800/50 border border-gray-700/60 rounded-xl p-4">
+      <p className="text-xs text-gray-500 uppercase tracking-widest font-mono font-semibold mb-3">
         Players
       </p>
       <div className="flex flex-col gap-2 mb-3">
@@ -321,15 +321,15 @@ export function SpectatorView({ sessionId, playerName, onLeave }: Props) {
   const stage = tree.find(s => s.stageId === gameState?.current_stage_id) ?? null
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
+    <div className="min-h-screen bg-gray-950 bg-data-grid flex flex-col">
 
       {/* Top bar */}
-      <div className="border-b border-gray-800 bg-gray-900 px-4 py-3 flex items-center gap-3">
-        <span className="text-xs font-mono border border-amber-700 text-amber-400 bg-amber-950 rounded px-2 py-0.5">
+      <div className="border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm px-4 py-2.5 flex items-center gap-3 sticky top-0 z-10">
+        <span className="text-xs font-mono border border-amber-700 text-amber-400 bg-amber-950/70 rounded-lg px-2.5 py-1 tracking-wider">
           👁 SPECTATOR
         </span>
         <div className="h-4 w-px bg-gray-700" />
-        <span className="text-white text-sm font-semibold truncate">
+        <span className="text-white text-sm font-display font-semibold truncate tracking-wide">
           {scenario?.name ?? 'Connecting…'}
         </span>
         <div className="ml-auto flex items-center gap-3">
@@ -339,7 +339,7 @@ export function SpectatorView({ sessionId, playerName, onLeave }: Props) {
           </div>
           <button
             onClick={onLeave}
-            className="text-xs text-gray-500 hover:text-red-400 border border-gray-700 hover:border-red-800 rounded px-2 py-1 transition-colors"
+            className="text-xs text-gray-500 hover:text-red-400 border border-gray-700 hover:border-red-800 rounded-lg px-3 py-1.5 font-mono transition-all"
           >
             Leave
           </button>
@@ -477,7 +477,7 @@ export function SpectatorView({ sessionId, playerName, onLeave }: Props) {
           </div>
 
           {/* Right sidebar */}
-          <div className="w-72 border-l border-gray-800 flex flex-col bg-gray-900 overflow-y-auto">
+          <div className="w-72 border-l border-gray-800 flex flex-col bg-gray-900/80 overflow-y-auto">
 
             {/* Player roster */}
             <div className="p-4 border-b border-gray-800">
@@ -486,7 +486,7 @@ export function SpectatorView({ sessionId, playerName, onLeave }: Props) {
 
             {/* Event log */}
             <div className="flex-1 p-4">
-              <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-3">
+              <p className="text-xs text-gray-500 uppercase tracking-widest font-mono font-semibold mb-3">
                 Event Log
               </p>
               <div className="flex flex-col gap-1.5">
@@ -494,7 +494,7 @@ export function SpectatorView({ sessionId, playerName, onLeave }: Props) {
                   <p className="text-gray-700 text-xs italic">No events yet</p>
                 )}
                 {eventLog.map((e, i) => (
-                  <p key={i} className="text-gray-500 text-[11px] font-mono leading-relaxed">
+                  <p key={i} className="text-gray-500 text-[10px] font-mono leading-relaxed" style={{fontFamily: "'JetBrains Mono', monospace"}}>
                     {e}
                   </p>
                 ))}

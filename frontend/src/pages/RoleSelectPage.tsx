@@ -63,7 +63,7 @@ export function RoleSelectPage({ clientId, playerName, gameState, onPickRole, on
     .map(([cid, name]) => ({ cid, name, role: gameState.roles[cid] as PlayerRole }))
 
   return (
-    <div className="h-full overflow-y-auto bg-gray-950 flex flex-col items-center justify-center p-6">
+    <div className="h-full overflow-y-auto bg-gray-950 flex flex-col items-center justify-center p-6 animate-enter">
       <div className="w-full max-w-2xl">
 
         {/* Header */}
@@ -72,10 +72,10 @@ export function RoleSelectPage({ clientId, playerName, gameState, onPickRole, on
         </button>
 
         <div className="mb-6">
-          <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-1">
+          <p className="text-xs text-gray-500 uppercase tracking-widest font-mono font-semibold mb-1">
             Role Selection
           </p>
-          <h1 className="text-white font-bold text-2xl">Choose your analyst role</h1>
+          <h1 className="text-white font-display font-bold text-xl tracking-wider">SELECT ANALYST ROLE</h1>
           <p className="text-gray-400 text-sm mt-2">
             Each role sees different telemetry. The IR Lead makes the final call on every decision.
             {isMultiPlayer && (

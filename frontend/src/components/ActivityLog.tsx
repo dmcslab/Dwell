@@ -20,7 +20,7 @@ export function ActivityLog({ entries }: Props) {
   }, [entries.length])
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto px-3 py-2 gap-2 font-mono text-xs">
+    <div className="flex flex-col h-full overflow-y-auto px-3 py-2 gap-2 font-mono text-xs" style={{fontFamily: "'JetBrains Mono', monospace"}}>
       {entries.length === 0 && (
         <p className="text-gray-600 text-center pt-4">Activity log — actions will appear here</p>
       )}

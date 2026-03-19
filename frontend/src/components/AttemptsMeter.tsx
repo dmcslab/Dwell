@@ -3,13 +3,22 @@ interface Props { remaining: number; max: number }
 export function AttemptsMeter({ remaining, max }: Props) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-xs text-gray-400 mr-1">Attempts</span>
+      <span className="text-[10px] text-gray-500 font-mono mr-0.5 tracking-wider">LIVES</span>
       {Array.from({ length: max }, (_, i) => {
-        const filled = i < remaining
-        const color  = remaining === 1 ? 'bg-red-500' : remaining === 2 ? 'bg-amber-500' : 'bg-emerald-500'
+        const alive = i < remaining
+        const color = remaining === 1 ? '#ef4444' : remaining === 2 ? '#f59e0b' : '#22d3ee'
         return (
-          <div key={i} className={`w-5 h-5 rounded flex items-center justify-center text-xs ${filled ? color : 'bg-gray-700 opacity-40'}`}>
-            {filled ? '🛡' : '✗'}
+          <div
+            key={i}
+            className="w-4 h-4 rounded flex items-center justify-center text-[9px] transition-all duration-300"
+            style={{
+              background: alive ? `${color}22` : 'transparent',
+              border: `1px solid ${alive ? color : '#374151'}`,
+              boxShadow: alive ? `0 0 6px 0 ${color}55` : 'none',
+              color: alive ? color : '#374151',
+            }}
+          >
+            {alive ? '◆' : '◇'}
           </div>
         )
       })}

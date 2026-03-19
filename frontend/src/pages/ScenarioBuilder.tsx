@@ -76,7 +76,7 @@ const blankStage = (index: number): DraftStage => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const inputCls = 'w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-600 transition-colors'
+const inputCls = 'op-input w-full'
 const textareaCls = `${inputCls} resize-y font-mono text-xs`
 
 function Label({ children }: { children: React.ReactNode }) {
@@ -482,7 +482,7 @@ function StepReview({ meta, stages, onSave }: {
       <button
         onClick={onSave}
         disabled={errors.length > 0}
-        className="w-full py-3 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
+        className="btn-accent w-full py-3 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Save Scenario →
       </button>
@@ -527,14 +527,14 @@ export function ScenarioBuilder({ onSaved, onCancel }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-start justify-center overflow-y-auto py-8 px-4 z-50">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-3xl">
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-start justify-center overflow-y-auto py-8 px-4 z-50">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-3xl shadow-[0_0_60px_-10px_rgb(0_0_0/0.9)] animate-enter">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div>
-            <h2 className="text-white font-bold text-lg">Scenario Builder</h2>
-            <p className="text-gray-500 text-xs mt-0.5">Build a scenario step by step — no JSON required</p>
+            <h2 className="text-white font-display font-bold text-base tracking-wider">SCENARIO BUILDER</h2>
+            <p className="text-gray-500 text-xs mt-0.5 font-mono">Build a scenario step by step — no JSON required</p>
           </div>
           <button onClick={onCancel} className="text-gray-500 hover:text-gray-300 text-xl">✕</button>
         </div>
@@ -575,7 +575,7 @@ export function ScenarioBuilder({ onSaved, onCancel }: Props) {
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-800">
           <button
             onClick={() => step === 0 ? onCancel() : setStep(s => s - 1)}
-            className="px-4 py-2 border border-gray-700 rounded-lg text-gray-400 hover:text-white text-sm transition-colors"
+            className="px-4 py-2 border border-gray-700 hover:border-gray-600 rounded-xl text-gray-400 hover:text-white text-sm transition-all font-ui"
           >
             {step === 0 ? 'Cancel' : '← Back'}
           </button>
@@ -583,14 +583,14 @@ export function ScenarioBuilder({ onSaved, onCancel }: Props) {
             <button
               onClick={() => setStep(s => s + 1)}
               disabled={step === 1 && stages.length === 0}
-              className="px-5 py-2 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-40 text-white font-semibold rounded-lg text-sm transition-colors"
+              className="btn-accent px-5 py-2 rounded-xl disabled:opacity-40"
             >
               Next →
             </button>
           )}
           {step === 3 && (
             <button onClick={handleSave} disabled={saving || validate(meta, stages).length > 0}
-              className="px-5 py-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white font-semibold rounded-lg text-sm transition-colors">
+              className="px-5 py-2 bg-emerald-800 hover:bg-emerald-700 border border-emerald-700 disabled:opacity-40 text-white font-semibold rounded-xl text-sm transition-all font-ui">
               {saving ? 'Saving…' : 'Save Scenario'}
             </button>
           )}
