@@ -206,7 +206,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT — free to use, modify, and distribute. Attribution appreciated.
+FinanceNavigator core is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+- ✅ Use, study, modify, and distribute freely
+- ✅ Run privately for personal use
+- ⚠️ If you modify and **offer it as a network service**, you must release your modifications
+  under the same license
+
+See [LICENSE](./LICENSE) for the full legal text.
 
 ---
 
