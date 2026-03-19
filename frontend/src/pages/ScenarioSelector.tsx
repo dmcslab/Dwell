@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { DmcslabLogo } from '../components/DmcslabLogo'
 import { gameApi }      from '../api/game'
 import { scenariosApi } from '../api/scenarios'
 import type { ScenarioSummary } from '../types/scenario'
@@ -48,16 +49,7 @@ export function ScenarioSelector({ onSelectWithSession }: Props) {
       <header className="relative border-b border-gray-800 bg-gray-950/80 backdrop-blur-sm sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="relative">
-              <span className="text-2xl filter drop-shadow-lg">🛡️</span>
-              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_2px_#4ade8080]" />
-            </div>
-            <div>
-              <h1 className="font-display text-lg font-bold text-white tracking-wider leading-none">
-                CYBER<span className="text-cyan-400">-</span>RANS
-              </h1>
-              <p className="text-gray-500 text-xs font-mono tracking-widest mt-0.5">IR TRAINING PLATFORM</p>
-            </div>
+            <DmcslabLogo size="md" />
           </div>
 
           {/* Analyst name input */}

@@ -12,6 +12,7 @@
  * Spectators send no game-affecting messages after joining.
  */
 import { useEffect, useRef, useState } from 'react'
+import { DmcslabLogo } from '../components/DmcslabLogo'
 import { WS_BASE }          from '../api/client'
 import { IrPhaseBadge }     from '../components/IrPhaseBadge'
 import { IncidentTimeline } from '../components/IncidentTimeline'
@@ -130,7 +131,7 @@ function ReadOnlyOptions({
               <span className="text-gray-200 text-sm leading-snug">{opt.actionText}</span>
               {wasChosen && (
                 <div className="mt-1">
-                  <span className={`text-[10px] font-mono font-semibold ${
+                  <span className={`text-xs font-mono font-semibold ${
                     isCorrect ? 'text-emerald-400' : 'text-red-400'
                   }`}>
                     {isCorrect ? '✓ Chosen — Correct' : '✗ Chosen — Incorrect'}
@@ -195,7 +196,7 @@ function PlayerRoster({
           </p>
           <div className="flex flex-wrap gap-1">
             {spectatorList.map(s => (
-              <span key={s.cid} className="text-[10px] text-gray-500 bg-gray-800 border border-gray-700 rounded-full px-2 py-0.5">
+              <span key={s.cid} className="text-xs text-gray-500 bg-gray-800 border border-gray-700 rounded-full px-2 py-0.5">
                 {s.name}
               </span>
             ))}
@@ -329,6 +330,8 @@ export function SpectatorView({ sessionId, playerName, onLeave }: Props) {
           👁 SPECTATOR
         </span>
         <div className="h-4 w-px bg-gray-700" />
+        <DmcslabLogo size="sm" />
+        <div className="h-4 w-px bg-gray-700/60" />
         <span className="text-white text-sm font-display font-semibold truncate tracking-wide">
           {scenario?.name ?? 'Connecting…'}
         </span>
@@ -384,7 +387,7 @@ export function SpectatorView({ sessionId, playerName, onLeave }: Props) {
                   {Array.from({ length: gameState.max_attempts }, (_, i) => (
                     <span
                       key={i}
-                      className={`w-4 h-4 rounded-full text-[9px] flex items-center justify-center
+                      className={`w-4 h-4 rounded-full text-[11px] flex items-center justify-center
                         ${i < gameState.attempts_remaining
                           ? gameState.attempts_remaining === 1 ? 'bg-red-500' : 'bg-emerald-600'
                           : 'bg-gray-800 opacity-40'
@@ -494,7 +497,7 @@ export function SpectatorView({ sessionId, playerName, onLeave }: Props) {
                   <p className="text-gray-700 text-xs italic">No events yet</p>
                 )}
                 {eventLog.map((e, i) => (
-                  <p key={i} className="text-gray-500 text-[10px] font-mono leading-relaxed" style={{fontFamily: "'JetBrains Mono', monospace"}}>
+                  <p key={i} className="text-gray-500 text-xs font-mono leading-relaxed" style={{fontFamily: "'IBM Plex Mono', monospace"}}>
                     {e}
                   </p>
                 ))}

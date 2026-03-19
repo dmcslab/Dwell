@@ -341,9 +341,9 @@ function StepOptions({ stages, onChange }: { stages: DraftStage[]; onChange: (s:
                 ? 'bg-cyan-900 text-cyan-300 border border-cyan-700'
                 : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
             }`}>
-            <span className="text-gray-600 font-mono text-[10px]">{idx + 1}. </span>
+            <span className="text-gray-600 font-mono text-xs">{idx + 1}. </span>
             {s.stageId}
-            <div className="text-[10px] text-gray-600 mt-0.5">{s.options.length} options</div>
+            <div className="text-xs text-gray-600 mt-0.5">{s.options.length} options</div>
           </button>
         ))}
       </div>
@@ -356,7 +356,7 @@ function StepOptions({ stages, onChange }: { stages: DraftStage[]; onChange: (s:
               <p className="text-xs text-gray-500 font-mono">{stage.stageId}</p>
               <p className="text-sm text-gray-300 font-semibold">{stage.prompt.slice(0, 80) || '(no prompt yet)'}</p>
             </div>
-            <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+            <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
               stage.options.some(o => o.isCorrect)
                 ? 'text-emerald-400 border-emerald-800 bg-emerald-950/30'
                 : 'text-amber-400 border-amber-800 bg-amber-950/30'
@@ -474,7 +474,7 @@ function StepReview({ meta, stages, onSave }: {
 
       <div className="bg-gray-900 border border-gray-700 rounded-xl p-4">
         <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-2">JSON Preview</p>
-        <pre className="text-[10px] text-gray-400 font-mono overflow-x-auto max-h-64 overflow-y-auto leading-relaxed">
+        <pre className="text-xs text-gray-400 font-mono overflow-x-auto max-h-64 overflow-y-auto leading-relaxed">
           {JSON.stringify(payload, null, 2)}
         </pre>
       </div>

@@ -26,7 +26,7 @@ export function SharePanel({ sessionId, shareLink }: Props) {
           {copied ? '✓ Copied' : 'Copy'}
         </button>
       </div>
-      <p className="text-[10px] text-gray-600 mt-2">Session ID: {sessionId}</p>
+      <p className="text-xs text-gray-600 mt-2">Session ID: {sessionId}</p>
     </div>
   )
 }

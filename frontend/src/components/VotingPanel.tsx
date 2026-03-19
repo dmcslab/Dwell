@@ -58,7 +58,7 @@ function SuggestionBadges({ suggestions, optionIndex }: {
       {forThis.map(s => (
         <span
           key={s.clientId}
-          className={`inline-flex items-center gap-1 text-[10px] font-mono border rounded px-1.5 py-0.5 ${ROLE_BADGE[s.role]}`}
+          className={`inline-flex items-center gap-1 text-xs font-mono border rounded px-1.5 py-0.5 ${ROLE_BADGE[s.role]}`}
         >
           {roleIcon(s.role)} {s.name}
         </span>
@@ -129,7 +129,7 @@ export function VotingPanel({
         <div className="flex items-center gap-2 flex-wrap">
           <IrPhaseBadge phase={stage.irPhase} />
           {/* Role badge */}
-          <span className={`text-[10px] font-mono border rounded px-2 py-0.5 font-semibold ${ROLE_BADGE[role]}`}>
+          <span className={`text-xs font-mono border rounded px-2 py-0.5 font-semibold ${ROLE_BADGE[role]}`}>
             {roleIcon(role)} {roleLabel(role)}
           </span>
         </div>
@@ -225,7 +225,7 @@ export function VotingPanel({
                 </span>
                 {/* Suggestion count badge */}
                 {suggestionCount > 0 && isSubmitter && (
-                  <span className="shrink-0 bg-sky-900 text-sky-300 text-[10px] font-mono border border-sky-700 rounded-full px-2 py-0.5">
+                  <span className="shrink-0 bg-sky-900 text-sky-300 text-xs font-mono border border-sky-700 rounded-full px-2 py-0.5">
                     {suggestionCount} suggest{suggestionCount > 1 ? 's' : ''}
                   </span>
                 )}
@@ -239,7 +239,7 @@ export function VotingPanel({
               {/* "Your suggestion" label */}
               {iMySuggested && (
                 <div className="ml-9 mt-1">
-                  <span className="text-[10px] text-sky-400 font-mono">↑ Your suggestion</span>
+                  <span className="text-xs text-sky-400 font-mono">↑ Your suggestion</span>
                 </div>
               )}
             </button>

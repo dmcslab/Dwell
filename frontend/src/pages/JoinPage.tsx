@@ -192,7 +192,7 @@ export function JoinPage({ sessionId, onJoined, onBack }: Props) {
                     >
                       {/* Selected indicator */}
                       {selected && (
-                        <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[9px]">✓</span>
+                        <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[11px]">✓</span>
                       )}
 
                       <div className="flex items-center gap-2 mb-2">
@@ -211,7 +211,7 @@ export function JoinPage({ sessionId, onJoined, onBack }: Props) {
                       {def.siemSources.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
                           {def.siemSources.map(src => (
-                            <span key={src} className={`text-[9px] font-mono rounded px-1 py-0.5 ${taken ? 'bg-gray-800 text-gray-700' : 'bg-gray-800 text-gray-500'}`}>
+                            <span key={src} className={`text-[11px] font-mono rounded px-1 py-0.5 ${taken ? 'bg-gray-800 text-gray-700' : 'bg-gray-800 text-gray-500'}`}>
                               {src}
                             </span>
                           ))}
@@ -219,10 +219,10 @@ export function JoinPage({ sessionId, onJoined, onBack }: Props) {
                       )}
 
                       {taken && takenBy && (
-                        <p className="text-[10px] text-gray-600 mt-2 font-mono">Taken by {takenBy}</p>
+                        <p className="text-xs text-gray-600 mt-2 font-mono">Taken by {takenBy}</p>
                       )}
                       {taken && !takenBy && def.id === 'ir_lead' && (
-                        <p className="text-[10px] text-gray-600 mt-2 font-mono">Already taken</p>
+                        <p className="text-xs text-gray-600 mt-2 font-mono">Already taken</p>
                       )}
                     </button>
                   )

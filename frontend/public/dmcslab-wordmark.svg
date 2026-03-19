@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 80" fill="none">
+  <defs>
+    <linearGradient id="accent-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#20c9bc"/>
+      <stop offset="100%" style="stop-color:#14b8a6"/>
+    </linearGradient>
+    <linearGradient id="shield-fill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a2e4a"/>
+      <stop offset="100%" style="stop-color:#111827"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shield icon mark -->
+  <g transform="translate(4,4)">
+    <path d="M36 2L58 14V33C58 46 48 56 36 60C24 56 14 46 14 33V14L36 2Z"
+      fill="url(#shield-fill)" stroke="url(#accent-grad)" stroke-width="2"/>
+    <!-- d letterform -->
+    <path d="M28 20V48" stroke="#20c9bc" stroke-width="2.8" stroke-linecap="round"/>
+    <path d="M28 20H35C40.5 20 44 24 44 34C44 44 40.5 48 35 48H28"
+      fill="none" stroke="#20c9bc" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Wordmark -->
+  <!-- d -->
+  <text x="86" y="52" font-family="'IBM Plex Sans',sans-serif" font-weight="600"
+    font-size="40" fill="#20c9bc" letter-spacing="-0.5">d</text>
+
+  <!-- MCS -->
+  <text x="111" y="52" font-family="'IBM Plex Sans',sans-serif" font-weight="700"
+    font-size="40" fill="#e8edf8" letter-spacing="-1">MCS</text>
+
+  <!-- lab — smaller, lighter -->
+  <text x="225" y="52" font-family="'IBM Plex Sans',sans-serif" font-weight="400"
+    font-size="34" fill="#6b7fa8" letter-spacing="0">lab</text>
+
+  <!-- Tagline -->
+  <text x="87" y="68" font-family="'IBM Plex Mono',monospace" font-weight="400"
+    font-size="10" fill="#4a5e82" letter-spacing="3.5">CYBER SECURITY LAB</text>
+
+  <!-- Thin accent line under wordmark -->
+  <line x1="86" y1="57" x2="286" y2="57" stroke="url(#accent-grad)" stroke-width="1.5" opacity="0.5"/>
+</svg>

@@ -1,3 +1,4 @@
+import { DmcslabLogo } from '../components/DmcslabLogo'
 /**
  * AdminDashboard.tsx
  * ------------------
@@ -44,7 +45,7 @@ const ROLE_ICON: Record<string, string> = {
 
 function pill(text: string, color: string) {
   return (
-    <span className={`text-[10px] font-mono border rounded px-1.5 py-0.5 ${color}`}>
+    <span className={`text-xs font-mono border rounded px-1.5 py-0.5 ${color}`}>
       {text}
     </span>
   )
@@ -185,21 +186,21 @@ function SessionsTab() {
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
               <div className="bg-gray-800 rounded-lg px-3 py-2">
-                <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Players</p>
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Players</p>
                 <p className="text-white font-bold">{s.participants.length}</p>
               </div>
               <div className="bg-gray-800 rounded-lg px-3 py-2">
-                <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Attempts Left</p>
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Attempts Left</p>
                 <p className={`font-bold ${s.attempts_remaining === 1 ? 'text-red-400' : 'text-white'}`}>
                   {s.attempts_remaining ?? '—'}
                 </p>
               </div>
               <div className="bg-gray-800 rounded-lg px-3 py-2">
-                <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Stages Done</p>
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Stages Done</p>
                 <p className="text-white font-bold">{s.completed_stages}</p>
               </div>
               <div className="bg-gray-800 rounded-lg px-3 py-2">
-                <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-0.5">Started</p>
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Started</p>
                 <p className="text-gray-300 text-xs font-mono">
                   {new Date(s.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
@@ -216,7 +217,7 @@ function SessionsTab() {
                       <span className="text-sm">{ROLE_ICON[role] ?? '👤'}</span>
                       <span className="text-gray-200 text-xs font-medium">{p.name}</span>
                       {role && (
-                        <span className="text-[9px] text-gray-500 font-mono capitalize">{role.replace('_', ' ')}</span>
+                        <span className="text-[11px] text-gray-500 font-mono capitalize">{role.replace('_', ' ')}</span>
                       )}
                     </div>
                   )
@@ -352,7 +353,7 @@ function StatsTab() {
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <p className="text-[10px] text-gray-600 mt-0.5">{pct}%</p>
+                  <p className="text-xs text-gray-600 mt-0.5">{pct}%</p>
                 </div>
               )
             })}
@@ -373,7 +374,7 @@ function StatsTab() {
                   <span className="text-gray-600 text-xs font-mono w-4 shrink-0">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-gray-200 text-xs font-medium truncate">{s.name}</p>
-                    <span className={`text-[10px] ${DIFF_COLOR[s.difficulty]}`}>{s.difficulty}</span>
+                    <span className={`text-xs ${DIFF_COLOR[s.difficulty]}`}>{s.difficulty}</span>
                   </div>
                   <span className="text-cyan-400 text-xs font-mono shrink-0">{s.plays} plays</span>
                 </li>
@@ -643,7 +644,7 @@ function UsersTab() {
               </div>
               <p className="text-white font-semibold text-sm">{u.username}</p>
               <p className="text-gray-500 text-xs">{u.email}</p>
-              <p className="text-gray-600 text-[10px] font-mono mt-0.5">
+              <p className="text-gray-600 text-xs font-mono mt-0.5">
                 Joined {new Date(u.created_at).toLocaleDateString()}
               </p>
             </div>

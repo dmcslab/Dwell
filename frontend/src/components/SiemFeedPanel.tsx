@@ -145,17 +145,17 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter }: 
             <span className={`w-2 h-2 rounded-full ${paused ? 'bg-gray-600' : panicMode ? 'bg-red-500 animate-pulse' : 'bg-emerald-500 animate-pulse'}`} />
             <span className="text-xs text-gray-300 font-semibold font-mono tracking-widest">SIEM FEED</span>
             {roleFilter && roleFilter.length > 0 && (
-              <span className="text-[9px] font-mono text-gray-500 border border-gray-700 rounded px-1">
+              <span className="text-[11px] font-mono text-gray-500 border border-gray-700 rounded px-1">
                 {roleFilter.join(' · ')}
               </span>
             )}
             {panicMode && (
-              <span className="text-[10px] text-red-400 font-mono border border-red-800 rounded px-1 animate-pulse">
+              <span className="text-xs text-red-400 font-mono border border-red-800 rounded px-1 animate-pulse">
                 HIGH VOLUME
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-[10px] font-mono">
+          <div className="flex items-center gap-2 text-xs font-mono">
             {criticalCount > 0 && (
               <span className="text-red-400 font-bold">{criticalCount} CRIT</span>
             )}
@@ -174,7 +174,7 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter }: 
               <button
                 key={s}
                 onClick={() => setFilterSev(s)}
-                className={`px-1.5 py-0.5 text-[9px] font-mono rounded transition-colors ${
+                className={`px-1.5 py-0.5 text-[11px] font-mono rounded transition-colors ${
                   filterSev === s
                     ? 'bg-gray-700 text-white'
                     : 'text-gray-500 hover:text-gray-300'
@@ -191,7 +191,7 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter }: 
               <button
                 key={s}
                 onClick={() => setFilterSrc(s)}
-                className={`px-1.5 py-0.5 text-[9px] font-mono rounded transition-colors ${
+                className={`px-1.5 py-0.5 text-[11px] font-mono rounded transition-colors ${
                   filterSrc === s
                     ? 'bg-gray-700 text-white'
                     : 'text-gray-500 hover:text-gray-300'
@@ -205,7 +205,7 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter }: 
       </div>
 
       {/* Column headers */}
-      <div className="shrink-0 flex gap-2 px-3 py-1 border-b border-gray-800 bg-gray-900/50 font-mono text-[9px] text-gray-600 uppercase tracking-wider">
+      <div className="shrink-0 flex gap-2 px-3 py-1 border-b border-gray-800 bg-gray-900/50 font-mono text-[11px] text-gray-600 uppercase tracking-wider">
         <span className="w-1.5 shrink-0" />
         <span className="w-[82px] shrink-0">Time</span>
         <span className="w-[62px] shrink-0">Source</span>
@@ -235,7 +235,7 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter }: 
         <div className="shrink-0 border-t border-gray-800 px-3 py-1.5 bg-gray-900/80">
           <button
             onClick={() => { setAutoScroll(true); if (containerRef.current) containerRef.current.scrollTop = 0 }}
-            className="w-full text-[10px] text-cyan-500 hover:text-cyan-300 font-mono flex items-center justify-center gap-1 transition-colors"
+            className="w-full text-xs text-cyan-500 hover:text-cyan-300 font-mono flex items-center justify-center gap-1 transition-colors"
           >
             ↑ Jump to latest
           </button>

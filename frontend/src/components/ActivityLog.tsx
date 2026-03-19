@@ -20,7 +20,7 @@ export function ActivityLog({ entries }: Props) {
   }, [entries.length])
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto px-3 py-2 gap-2 font-mono text-xs" style={{fontFamily: "'JetBrains Mono', monospace"}}>
+    <div className="flex flex-col h-full overflow-y-auto px-3 py-2 gap-2 font-mono text-xs" style={{fontFamily: "'IBM Plex Mono', monospace"}}>
       {entries.length === 0 && (
         <p className="text-gray-600 text-center pt-4">Activity log — actions will appear here</p>
       )}
@@ -31,7 +31,7 @@ export function ActivityLog({ entries }: Props) {
           </span>
           <div className="flex flex-col gap-0.5">
             <span className={TYPE_STYLE[e.type]}>{e.text}</span>
-            {e.detail && <span className="text-gray-500 text-[10px] leading-tight">{e.detail}</span>}
+            {e.detail && <span className="text-gray-500 text-xs leading-tight">{e.detail}</span>}
           </div>
         </div>
       ))}

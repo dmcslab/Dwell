@@ -138,7 +138,7 @@ function StageNode({ stage, index, status, timestamp, wrongCount, isLast }: Stag
       {/* Node */}
       <div className="relative flex flex-col items-center">
         {/* Step number badge */}
-        <div className="text-[9px] text-gray-600 font-mono mb-1 tracking-wider">{String(index + 1).padStart(2,'0')}</div>
+        <div className="text-[11px] text-gray-600 font-mono mb-1 tracking-wider">{String(index + 1).padStart(2,'0')}</div>
 
         {/* Main circle */}
         <div
@@ -155,25 +155,25 @@ function StageNode({ stage, index, status, timestamp, wrongCount, isLast }: Stag
       </div>
 
       {/* Phase label */}
-      <div className={`mt-2 text-[9px] font-mono font-semibold uppercase tracking-wider text-center whitespace-nowrap ${color.text}`}>
+      <div className={`mt-2 text-[11px] font-mono font-semibold uppercase tracking-wider text-center whitespace-nowrap ${color.text}`}>
         {shortPhaseLabel(stage.irPhase)}
       </div>
 
       {/* Timestamp or status */}
       <div className="mt-0.5 h-3 flex items-center justify-center">
         {timestamp ? (
-          <span className="text-[9px] text-gray-500 font-mono">{timestamp}</span>
+          <span className="text-[11px] text-gray-500 font-mono">{timestamp}</span>
         ) : status === 'active' ? (
-          <span className="text-[9px] text-cyan-500 font-mono animate-pulse">IN PROGRESS</span>
+          <span className="text-[11px] text-cyan-500 font-mono animate-pulse">IN PROGRESS</span>
         ) : status === 'locked' ? (
-          <span className="text-[9px] text-gray-600 font-mono">—</span>
+          <span className="text-[11px] text-gray-600 font-mono">—</span>
         ) : null}
       </div>
 
       {/* Wrong attempt counter */}
       {wrongCount > 0 && (
         <div className="mt-0.5">
-          <span className="text-[9px] text-amber-600 font-mono">{wrongCount} retry{wrongCount > 1 ? 's' : ''}</span>
+          <span className="text-[11px] text-amber-600 font-mono">{wrongCount} retry{wrongCount > 1 ? 's' : ''}</span>
         </div>
       )}
     </div>
@@ -204,7 +204,7 @@ function Legend() {
       ] as const).map(([, color, label]) => (
         <div key={label} className="flex items-center gap-1">
           <span className={`w-2 h-2 rounded-full bg-${color}-600`} />
-          <span className="text-[9px] text-gray-500 font-mono">{label}</span>
+          <span className="text-[11px] text-gray-500 font-mono">{label}</span>
         </div>
       ))}
     </div>
@@ -223,7 +223,7 @@ function ProgressBar({ completed, total }: { completed: number; total: number })
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-[10px] text-gray-500 font-mono shrink-0">{completed}/{total} stages</span>
+      <span className="text-xs text-gray-500 font-mono shrink-0">{completed}/{total} stages</span>
     </div>
   )
 }
@@ -262,7 +262,7 @@ function IncidentTimelineInner({
       {/* Top row: scenario name + progress bar */}
       <div className="flex items-center gap-4 mb-3">
         <div className="flex-1 min-w-0">
-          <p className="text-[9px] text-gray-600 font-mono uppercase tracking-widest mb-0.5">INCIDENT TIMELINE</p>
+          <p className="text-[11px] text-gray-600 font-mono uppercase tracking-widest mb-0.5">INCIDENT TIMELINE</p>
           <p className="text-xs text-gray-300 font-semibold truncate font-ui">{scenarioName}</p>
         </div>
         <div className="w-48 shrink-0">

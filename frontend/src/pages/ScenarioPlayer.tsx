@@ -11,6 +11,7 @@ import { VotingPanel }          from '../components/VotingPanel'
 import { RoleSelectPage }       from './RoleSelectPage'
 import { SpectatorView }        from './SpectatorView'
 import { useWebSocketGame }     from '../hooks/useWebSocketGame'
+import { DmcslabLogo } from '../components/DmcslabLogo'
 import { ROLE_DEFINITIONS }     from '../types/scenario'
 import type { GameState, PlayerRole, ScenarioFull, SessionSummary } from '../types/scenario'
 
@@ -300,7 +301,7 @@ export function ScenarioPlayer({ scenarioId, initialSessionId, initialPlayerName
             <button onClick={() => setRightTab('activity')} className={`flex-1 px-3 py-2 text-xs font-mono tracking-wider font-semibold transition-colors flex items-center justify-center gap-1.5 ${rightTab === 'activity' ? 'text-cyan-400 border-b-2 border-cyan-500 bg-gray-800/50' : 'text-gray-500 hover:text-gray-300'}`}>
               Activity Log
               {ws.activityLog.length > 0 && (
-                <span className="bg-gray-700 text-gray-400 text-[9px] font-mono rounded-full px-1.5 py-0.5">{ws.activityLog.length}</span>
+                <span className="bg-gray-700 text-gray-400 text-[11px] font-mono rounded-full px-1.5 py-0.5">{ws.activityLog.length}</span>
               )}
             </button>
           </div>
@@ -320,14 +321,14 @@ export function ScenarioPlayer({ scenarioId, initialSessionId, initialPlayerName
 
           <div className="shrink-0 border-t border-gray-800 px-3 py-2 flex flex-col gap-1">
             {ws.onlineParticipants.length > 0 && (
-              <p className="text-[10px] text-gray-600 font-mono">{ws.onlineParticipants.length} participant{ws.onlineParticipants.length !== 1 ? 's' : ''} online</p>
+              <p className="text-xs text-gray-600 font-mono">{ws.onlineParticipants.length} participant{ws.onlineParticipants.length !== 1 ? 's' : ''} online</p>
             )}
             {Object.keys(ws.spectators).length > 0 && (
               <div>
-                <p className="text-[10px] text-amber-700 font-mono mb-1">👁 {Object.keys(ws.spectators).length} watching</p>
+                <p className="text-xs text-amber-700 font-mono mb-1">👁 {Object.keys(ws.spectators).length} watching</p>
                 <div className="flex flex-wrap gap-1">
                   {Object.values(ws.spectators).map((s, i) => (
-                    <span key={i} className="text-[9px] text-gray-600 bg-gray-800 border border-gray-700 rounded-full px-1.5 py-0.5">{s.name}</span>
+                    <span key={i} className="text-[11px] text-gray-600 bg-gray-800 border border-gray-700 rounded-full px-1.5 py-0.5">{s.name}</span>
                   ))}
                 </div>
               </div>

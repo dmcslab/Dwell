@@ -17,7 +17,7 @@ export function IrPhaseBadge({ phase, className = '' }: Props) {
     .replace('Detection & Analysis', 'Detection')
     .replace('Post-Incident Activity', 'Post-Incident')
   return (
-    <span className={`inline-block border rounded px-2 py-0.5 text-[10px] font-mono font-semibold tracking-wider uppercase ${phaseClass(label)} ${className}`}>
+    <span className={`inline-block border rounded px-2 py-0.5 text-xs font-mono font-semibold tracking-wider uppercase ${phaseClass(label)} ${className}`}>
       {shortened}
     </span>
   )

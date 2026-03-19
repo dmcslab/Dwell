@@ -161,9 +161,9 @@ export function RoleSelectPage({ clientId, playerName, gameState, onPickRole, on
                 {/* SIEM sources */}
                 <div className="flex flex-wrap gap-1 mt-auto">
                   {role.siemSources.length === 0 ? (
-                    <span className="text-[10px] text-gray-500 font-mono">All sources</span>
+                    <span className="text-xs text-gray-500 font-mono">All sources</span>
                   ) : role.siemSources.map(s => (
-                    <span key={s} className="text-[9px] font-mono bg-gray-800 text-gray-400 border border-gray-700 rounded px-1.5 py-0.5">
+                    <span key={s} className="text-[11px] font-mono bg-gray-800 text-gray-400 border border-gray-700 rounded px-1.5 py-0.5">
                       {s}
                     </span>
                   ))}
@@ -173,7 +173,7 @@ export function RoleSelectPage({ clientId, playerName, gameState, onPickRole, on
                 {otherPicked.length > 0 && (
                   <div className="mt-2 flex gap-1 flex-wrap">
                     {otherPicked.map(p => (
-                      <span key={p.cid} className="text-[9px] text-gray-400">
+                      <span key={p.cid} className="text-[11px] text-gray-400">
                         {p.name}
                       </span>
                     ))}
