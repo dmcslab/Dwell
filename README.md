@@ -26,7 +26,7 @@
 ### macOS / Linux
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/cyber-rans.git
+git clone https://github.com/dmcslab/cyber-rans.git
 cd cyber-rans
 ./start.sh
 ```
@@ -34,7 +34,7 @@ cd cyber-rans
 ### Windows
 
 ```
-git clone https://github.com/YOUR_USERNAME/cyber-rans.git
+git clone https://github.com/dmcslab/cyber-rans.git
 cd cyber-rans
 start.bat
 ```
