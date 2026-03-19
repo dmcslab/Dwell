@@ -1,23 +1,23 @@
 networks:
-  cyber-rans_net:
-    name: cyber-rans_net
+  cyberrans_net:
     driver: bridge
 
 services:
+
   db:
     image: postgres:16-alpine
-    container_name: cyber-rans_db
-    networks: [cyber-rans_net]
+    container_name: cyberrans_db
+    networks: [cyberrans_net]
     environment:
       POSTGRES_USER:     cyber
       POSTGRES_PASSWORD: cyber
-      POSTGRES_DB:       cyber-rans
+      POSTGRES_DB:       cyberrans
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cyber -d cyber-rans"]
+      test: ["CMD-SHELL", "pg_isready -U cyber -d cyberrans"]
       interval: 3s
       timeout: 3s
       retries: 20
@@ -26,8 +26,8 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: cyber-rans_redis
-    networks: [cyber-rans_net]
+    container_name: cyberrans_redis
+    networks: [cyberrans_net]
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redisdata:/data
@@ -44,8 +44,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: cyber-rans_backend
-    networks: [cyber-rans_net]
+    container_name: cyberrans_backend
+    networks: [cyberrans_net]
     env_file:
       - ./backend/.env
     volumes:
@@ -63,17 +63,17 @@ services:
     build:
       context: ./orchestrator
       dockerfile: Dockerfile
-    container_name: cyber-rans_orchestrator
-    networks: [cyber-rans_net]
+    container_name: cyberrans_orchestrator
+    networks: [cyberrans_net]
     environment:
       REDIS_URL:           redis://redis:6379/0
-      WORKER_IMAGE:        cyber-rans_scenario_worker:latest
-      DOCKER_NETWORK:      cyber-rans_net
+      WORKER_IMAGE:        cyberrans_scenario_worker:latest
+      DOCKER_NETWORK:      cyberrans_net
       WORKER_PORT:         "8765"
       MAX_WORKERS:         "50"
       WORKER_IDLE_TIMEOUT: "3600"
       CLEANUP_INTERVAL:    "60"
-      WORKER_DATABASE_URL: postgresql+asyncpg://cyber:cyber@db:5432/cyber-rans
+      WORKER_DATABASE_URL: postgresql+asyncpg://cyber:cyber@db:5432/cyberrans
       WORKER_REDIS_URL:    redis://redis:6379/0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -89,8 +89,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: cyber-rans_frontend
-    networks: [cyber-rans_net]
+    container_name: cyberrans_frontend
+    networks: [cyberrans_net]
     volumes:
       - ./frontend:/app
       - /app/node_modules
