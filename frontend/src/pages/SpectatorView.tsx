@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { DmcslabLogo } from '../components/DmcslabLogo'
-import { WS_BASE }          from '../api/client'
+import { getWsBase }          from '../api/client'
 import { IrPhaseBadge }     from '../components/IrPhaseBadge'
 import { IncidentTimeline } from '../components/IncidentTimeline'
 import { ROLE_DEFINITIONS } from '../types/scenario'
@@ -230,7 +230,7 @@ export function SpectatorView({ sessionId, playerName, onLeave }: Props) {
     setEventLog(prev => [`${new Date().toLocaleTimeString()} — ${msg}`, ...prev].slice(0, 50))
 
   useEffect(() => {
-    const url = `${WS_BASE}/api/v1/game/play/${sessionId}?name=${encodeURIComponent(playerName)}`
+    const url = `${getWsBase()}/api/v1/game/play/${sessionId}?name=${encodeURIComponent(playerName)}`
     const ws  = new WebSocket(url)
     wsRef.current = ws
 

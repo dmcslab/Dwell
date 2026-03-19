@@ -1,5 +1,16 @@
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
-const API  = `${BASE}/api/v1`
+/**
+ * API client — zero-config, works locally and behind any reverse proxy / tunnel.
+ *
+ * All paths are relative (/api/v1/...) so the browser always calls the same
+ * host:port it loaded the page from. Vite proxies these to the backend
+ * internally — the user never needs to configure any URLs.
+ *
+ * WebSocket URL is derived from window.location at runtime:
+ *   http://localhost:5173 → ws://localhost:5173/api/v1/game/play/...
+ *   https://your.tunnel.com → wss://your.tunnel.com/api/v1/game/play/...
+ */
+
+const API = '/api/v1'
 
 let _accessToken = ''
 let _refreshToken = ''
@@ -44,11 +55,22 @@ async function _fetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  get:    <T>(path: string)               => _fetch<T>(path),
+  get:    <T>(path: string)                => _fetch<T>(path),
   post:   <T>(path: string, body: unknown) => _fetch<T>(path, { method: 'POST',  body: JSON.stringify(body) }),
   put:    <T>(path: string, body: unknown) => _fetch<T>(path, { method: 'PUT',   body: JSON.stringify(body) }),
   patch:  <T>(path: string, body: unknown) => _fetch<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(path: string)               => _fetch<T>(path, { method: 'DELETE' }),
 }
 
-export const WS_BASE = BASE.replace(/^http/, 'ws')
+/**
+ * Derive the WebSocket base URL from window.location at runtime.
+ * http://  → ws://   (preserves host and port exactly)
+ * https:// → wss://  (required for Cloudflare Tunnel / TLS termination)
+ */
+export function getWsBase(): string {
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${proto}//${window.location.host}`
+}
+
+// Legacy export kept for compatibility — now computed at call time
+export const WS_BASE = ''

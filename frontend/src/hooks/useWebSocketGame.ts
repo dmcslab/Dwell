@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { WS_BASE } from '../api/client'
+import { getWsBase } from '../api/client'
 import type {
   DecisionRecord, GamePhase, GameState, PlayerRole,
   ScenarioFull, SessionSummary, SuggestionEntry, WsMessage,
@@ -83,7 +83,7 @@ export function useWebSocketGame(
 
   useEffect(() => {
     if (!sessionId) return
-    const url = `${WS_BASE}/api/v1/game/play/${sessionId}?name=${encodeURIComponent(playerName)}`
+    const url = `${getWsBase()}/api/v1/game/play/${sessionId}?name=${encodeURIComponent(playerName)}`
     const ws  = new WebSocket(url)
     wsRef.current = ws
     let intentionalClose = false  // flag to suppress onclose during cleanup

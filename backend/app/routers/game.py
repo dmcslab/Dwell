@@ -23,7 +23,7 @@ import json, logging, uuid as _uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
@@ -83,7 +83,7 @@ async def get_game_scenario(scenario_id: int):
 # ── Session start ─────────────────────────────────────────────────────────────
 
 @router.post("/start/{scenario_id}")
-async def start_session(scenario_id: int, body: StartRequest):
+async def start_session(scenario_id: int, body: StartRequest, request: Request):
     async with AsyncSessionFactory() as db:
         result = await db.execute(select(Scenario).where(Scenario.id == scenario_id))
         scenario = result.scalar_one_or_none()
@@ -107,7 +107,14 @@ async def start_session(scenario_id: int, body: StartRequest):
     await set_state(redis, session_id, initial_state)
     await register_active_session(redis, session_id, scenario_id, scenario.name)
 
-    share_link = f"{settings.APP_BASE_URL}/#/join/{session_id}"
+    # Derive public URL from the request origin so share links work
+    # correctly both locally and behind Cloudflare Tunnel / any proxy
+    origin = (
+        request.headers.get("origin")
+        or request.headers.get("referer", "").rstrip("/")
+        or settings.APP_BASE_URL
+    ).rstrip("/")
+    share_link = f"{origin}/#/join/{session_id}"
     return {"session_id": session_id, "share_link": share_link, "scenario_id": scenario_id,
             "team_name": body.team_name, "state": initial_state}
 

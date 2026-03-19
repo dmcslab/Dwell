@@ -17,4 +17,8 @@ echo "[entrypoint] Seeding scenarios..."
 python scripts/seed_scenarios.py
 
 echo "[entrypoint] Starting server..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+exec uvicorn app.main:app \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --proxy-headers \
+  --forwarded-allow-ips="*"

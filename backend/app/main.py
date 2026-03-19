@@ -23,10 +23,27 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS: support wildcard "*" for open deployments or specific URLs
+_raw = settings.ALLOWED_ORIGINS.strip()
+if _raw == "*":
+    _cors_origins = ["*"]
+    _cors_creds   = False  # credentials can't be used with wildcard
+else:
+    _origins = [o.strip() for o in _raw.split(",") if o.strip()]
+    _all: list[str] = []
+    for o in _origins:
+        _all.append(o)
+        if o.startswith("http://"):
+            _all.append(o.replace("http://", "https://", 1))
+        elif o.startswith("https://"):
+            _all.append(o.replace("https://", "http://", 1))
+    _cors_origins = _all
+    _cors_creds   = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins_list,
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_creds,
     allow_methods=["*"],
     allow_headers=["*"],
 )
