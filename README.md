@@ -15,7 +15,8 @@
   <img src="https://img.shields.io/badge/setup-one_command-brightgreen" alt="One command"/>
   <img src="https://img.shields.io/badge/scenarios-15-orange" alt="15 Scenarios"/>
 </p>
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](./LICENSE)
+
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 ---
 
