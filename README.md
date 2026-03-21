@@ -14,8 +14,8 @@
   <img src="https://img.shields.io/badge/docker-required-blue?logo=docker" alt="Docker"/>
   <img src="https://img.shields.io/badge/setup-one_command-brightgreen" alt="One command"/>
   <img src="https://img.shields.io/badge/scenarios-15-orange" alt="15 Scenarios"/>
-  <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT"/>
 </p>
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](./LICENSE)
 
 ---
 
