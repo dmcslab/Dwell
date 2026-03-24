@@ -137,6 +137,40 @@ Full setup guide: [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md)
 
 ---
 
+## Security Notes
+
+Dwell is designed for **local / private-network deployment** as a training tool.
+A few defaults are intentionally permissive for ease of use — here is what to
+know before exposing the app externally.
+
+| Setting | Default | Notes |
+|---|---|---|
+| DB credentials | `dwell:dwell` | Internal Docker network only — the database port is never exposed to the host |
+| `SECRET_KEY` | auto-generated | A random key is generated per process startup. Sessions survive container restarts only if you set a fixed key in `backend/.env` (see below) |
+| Admin password | `Dwell!Change123` | **Change this after first login** via Admin → Users |
+| `ALLOWED_ORIGINS` | `*` | Safe because the only exposed port (5173) is the Vite proxy — the backend is not directly reachable |
+| `--forwarded-allow-ips=*` | Enabled | Required for Cloudflare Tunnel — the tunnel forwards headers from an undetermined internal IP |
+
+### Setting a persistent SECRET\_KEY
+
+If you want login sessions to survive a container restart, add a fixed key to
+`backend/.env`:
+
+```bash
+# generate a key
+python3 -c "import secrets; print(secrets.token_hex(32))"
+
+# paste the output into backend/.env
+SECRET_KEY=<your-generated-key>
+```
+
+Without this, a new random key is generated on every startup and all existing
+JWT tokens are invalidated (users will need to log in again after a restart).
+This is fine for ephemeral training sessions; set a fixed key if you run
+persistent multi-day exercises.
+
+---
+
 ## Architecture
 
 ```
