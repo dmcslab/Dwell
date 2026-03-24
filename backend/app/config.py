@@ -1,4 +1,5 @@
 import secrets as _secrets
+from functools import cached_property
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _SENTINEL = "CHANGE_ME_IN_PRODUCTION_USE_SECRETS_TOKEN_HEX_32"
@@ -29,9 +30,15 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    @property
+    @cached_property
     def effective_secret_key(self) -> str:
-        """Always returns a usable key — generates one if still placeholder."""
+        """Return a stable signing key for the lifetime of this process.
+
+        cached_property stores the result in the instance __dict__ on first
+        access, so _auto_secret() is called exactly once — not once per
+        jwt.encode / jwt.decode call.  Without caching, every call would
+        produce a different random key, making all JWTs immediately invalid.
+        """
         if self.SECRET_KEY == _SENTINEL or not self.SECRET_KEY.strip():
             return _auto_secret()
         return self.SECRET_KEY

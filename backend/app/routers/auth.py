@@ -3,13 +3,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from passlib.context import CryptContext
 from redis.asyncio import Redis
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_active_user
 from app.auth.jwt import consume_refresh_token, create_access_token, generate_refresh_token, revoke_refresh_token, store_refresh_token
 from app.database import get_db, get_redis
 from app.models.models import User
-from app.schemas.schemas import MessageResponse, RefreshRequest, TokenResponse, UserCreate, UserLogin, UserOut
+from app.schemas.schemas import MessageResponse, RefreshRequest, TokenResponse, UserLogin, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 _pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -27,19 +26,8 @@ def _tokens(user: User) -> tuple[str, str]:
     return create_access_token(user.id, user.is_admin), generate_refresh_token()
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: UserCreate, db: AsyncSession = Depends(get_db), redis: Redis = Depends(get_redis)) -> TokenResponse:
-    user = User(username=body.username, email=body.email, hashed_password=_hash(body.password), is_admin=False)
-    db.add(user)
-    try:
-        await db.flush()
-        await db.refresh(user)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username or email already registered")
-    access, refresh = _tokens(user)
-    await store_refresh_token(redis, refresh, user.id)
-    return TokenResponse(access_token=access, refresh_token=refresh)
+# NOTE: Public self-registration is intentionally removed.
+# User accounts are created by an admin via POST /api/v1/admin/users.
 
 
 @router.post("/login", response_model=TokenResponse)
