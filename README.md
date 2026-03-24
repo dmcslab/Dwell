@@ -1,7 +1,5 @@
-<p align="center">
- src="https://github.com/user-attachments/assets/ed588b7e-2f92-4a61-8768-87f8c6cd3ae7" />
-.png" alt="Dwell — Incident Response Training" width="820"/>
-</p>
+
+<img width="1400" height="560" alt="dwell-github-banner" src="https://github.com/user-attachments/assets/5665a467-4325-4d35-8954-102a71e419f7" />
 
 <h1 align="center">Dwell — Incident Response Training Platform</h1>
 
