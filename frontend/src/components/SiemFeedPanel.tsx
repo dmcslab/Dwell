@@ -82,17 +82,31 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter, se
     setPanicMode(PANIC_PHASE_PREFIXES.some(p => lp.startsWith(p)))
   }, [irPhase])
 
-  // Initial backlog on mount / phase change
-  // H2 fix: pass combined seed so all clients in the same session see the same backlog
+  // Track whether this is the first mount (needs full backlog) vs a phase transition
+  const isFirstMount = useRef(true)
+
+  // On first mount: generate a full backlog.
+  // On phase change: prepend a small contextual batch to the existing history
+  // so analysts keep the logs they were reading instead of losing them.
+  // H2 fix: seeded so all clients in the same session see the same initial backlog.
   useEffect(() => {
+    if (paused && !isFirstMount.current) return   // L2: skip phase transitions while paused
     const seed = sessionSeed !== undefined ? sessionSeed ^ hashSeed(irPhase) : undefined
-    const initial = generateLogBatch(irPhase, keyTTPs, INITIAL_LINES, seed)
-    // Stagger timestamps backwards so it looks like a real log history
-    const stamped = initial.map((l, i) => ({
-      ...l,
-      ts: offsetTs(l.ts, -(INITIAL_LINES - i) * 3000),
-    }))
-    setLines(stamped)
+
+    if (isFirstMount.current) {
+      isFirstMount.current = false
+      const initial = generateLogBatch(irPhase, keyTTPs, INITIAL_LINES, seed)
+      const stamped = initial.map((l, i) => ({
+        ...l,
+        ts: offsetTs(l.ts, -(INITIAL_LINES - i) * 3000),
+      }))
+      setLines(stamped)
+    } else {
+      // Phase advanced — inject 4 transition lines at the top, keep full history
+      const transition = generateLogBatch(irPhase, keyTTPs, 4, seed)
+      setLines(prev => [...transition, ...prev].slice(0, MAX_LINES))
+      setNewIds(new Set(transition.map(l => l.id)))
+    }
   }, [irPhase, sessionSeed])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Streaming interval
@@ -178,7 +192,7 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter, se
         <div className="flex gap-2 flex-wrap">
           {/* Severity filter */}
           <div className="flex items-center gap-1">
-            {(['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'INFO'] as const).map(s => (
+            {(['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'WARN', 'INFO'] as const).map(s => (
               <button
                 key={s}
                 onClick={() => setFilterSev(s)}
