@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { SESSION_EXPIRED_EVENT, auth } from './api/client'
 import { ScenarioSelector } from './pages/ScenarioSelector'
 import { ScenarioPlayer }   from './pages/ScenarioPlayer'
 import { JoinPage }         from './pages/JoinPage'
@@ -15,7 +16,6 @@ interface SavedSession {
   sessionId:  string
   playerName: string
   shareLink:  string
-  joinToken:  string   // HMAC token — required for WS authentication
   joinRole?:  string
 }
 
@@ -34,8 +34,8 @@ function clearSession() {
 
 type Route =
   | { name: 'selector' }
-  | { name: 'player';  scenarioId: number; sessionId: string; playerName: string; shareLink: string; joinToken: string; joinRole?: PlayerRole }
-  | { name: 'join';    sessionId: string; joinToken: string }
+  | { name: 'player';  scenarioId: number; sessionId: string; playerName: string; shareLink: string; joinRole?: PlayerRole }
+  | { name: 'join';    sessionId: string }
   | { name: 'debrief'; summary: SessionSummary; scenario: ScenarioFull }
   | { name: 'admin' }
 
@@ -56,37 +56,26 @@ function ThemeToggle() {
 }
 
 export default function App() {
+  const [sessionExpired, setSessionExpired] = useState(false)
+
+  useEffect(() => {
+    const handler = () => { auth.clearTokens(); setSessionExpired(true) }
+    window.addEventListener(SESSION_EXPIRED_EVENT, handler)
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handler)
+  }, [])
+
   const [route, setRoute] = useState<Route>(() => {
     const hash = window.location.hash
-
-    // Share link format: #/join/{session_id}/{join_token}
-    const joinMatch = hash.match(/^#\/join\/([^/]+)\/([^/]+)$/)
-    if (joinMatch) return { name: 'join', sessionId: joinMatch[1], joinToken: joinMatch[2] }
-
+    const joinMatch = hash.match(/^#\/join\/([^/]+)$/)
+    if (joinMatch) return { name: 'join', sessionId: joinMatch[1] }
     const saved = loadSession()
-    if (saved) return {
-      name:      'player',
-      scenarioId: saved.scenarioId,
-      sessionId:  saved.sessionId,
-      playerName: saved.playerName,
-      shareLink:  saved.shareLink,
-      joinToken:  saved.joinToken,
-      joinRole:   saved.joinRole as PlayerRole | undefined,
-    }
-
+    if (saved) return { name: 'player', ...saved, joinRole: saved.joinRole as PlayerRole | undefined }
     return { name: 'selector' }
   })
 
   const go = (r: Route) => {
     if (r.name === 'player') {
-      saveSession({
-        scenarioId: r.scenarioId,
-        sessionId:  r.sessionId,
-        playerName: r.playerName,
-        shareLink:  r.shareLink,
-        joinToken:  r.joinToken,
-        joinRole:   r.joinRole,
-      })
+      saveSession({ scenarioId: r.scenarioId, sessionId: r.sessionId, playerName: r.playerName, shareLink: r.shareLink, joinRole: r.joinRole })
       window.location.hash = `#/play/${r.sessionId}`
     } else {
       clearSession()
@@ -98,11 +87,26 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-950 font-ui">
+      {sessionExpired && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-red-700 rounded-xl p-8 max-w-sm w-full mx-4 text-center shadow-2xl">
+            <h2 className="text-red-400 text-lg font-bold font-mono mb-3 tracking-wider">SESSION EXPIRED</h2>
+            <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+              Your session has timed out. Please log in again to continue.
+            </p>
+            <button
+              onClick={() => { setSessionExpired(false); setRoute({ name: 'selector' }) }}
+              className="w-full bg-red-700 hover:bg-red-600 text-white font-semibold px-6 py-2.5 rounded-lg transition"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
       {route.name === 'selector' && (
         <ScenarioSelector
-          onSelect={() => {}}
-          onSelectWithSession={(scenarioId, sessionId, playerName, shareLink, joinToken) =>
-            go({ name: 'player', scenarioId, sessionId, playerName, shareLink, joinToken })
+          onSelectWithSession={(scenarioId, sessionId, playerName, shareLink) =>
+            go({ name: 'player', scenarioId, sessionId, playerName, shareLink })
           }
         />
       )}
@@ -110,11 +114,10 @@ export default function App() {
       {route.name === 'player' && (
         <ScenarioPlayer
           scenarioId={route.scenarioId}
-          initialSessionId={route.sessionId   || undefined}
+          initialSessionId={route.sessionId  || undefined}
           initialPlayerName={route.playerName || undefined}
           initialShareLink={route.shareLink   || undefined}
-          initialToken={route.joinToken       || undefined}
-          initialRole={route.joinRole         || undefined}
+          initialRole={route.joinRole || undefined}
           onBack={() => go({ name: 'selector' })}
           onDebrief={(summary, scenario) => go({ name: 'debrief', summary, scenario })}
         />
@@ -123,9 +126,8 @@ export default function App() {
       {route.name === 'join' && (
         <JoinPage
           sessionId={route.sessionId}
-          joinToken={route.joinToken}
-          onJoined={(scenarioId, sessionId, playerName, role, joinToken) =>
-            go({ name: 'player', scenarioId, sessionId, playerName, shareLink: '', joinToken, joinRole: role })
+          onJoined={(scenarioId, sessionId, playerName, role) =>
+            go({ name: 'player', scenarioId, sessionId, playerName, shareLink: '', joinRole: role })
           }
           onBack={() => go({ name: 'selector' })}
         />

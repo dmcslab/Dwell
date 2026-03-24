@@ -215,7 +215,24 @@ export function useWebSocketGame(
     }
 
     return () => { intentionalClose = true; ws.close() }
-  }, [sessionId])  // only reconnect when sessionId changes — playerName/addLog are stable
+  }, [sessionId])
+  // Dependency array intentionally contains only sessionId.
+  //
+  // playerName: captured into the WS URL at connection time. If the user
+  //   changes their name after connecting we do NOT want to tear down and
+  //   rebuild the WebSocket — that would drop the live game session.
+  //   The name is cosmetic after connect; the server already registered it.
+  //
+  // addLog: stable — defined with useCallback and no deps of its own.
+  //   Including it would satisfy ESLint but never actually change between
+  //   renders, so it is safe to omit.
+  //
+  // token: captured into the URL at connection time, same reasoning as
+  //   playerName. Re-connecting with a new token is never needed within
+  //   a single session lifecycle.
+  //
+  // If you add deps here, be aware that ANY change will close and reopen
+  // the WebSocket, disconnecting all players from the live session.
 
   // Helper: rebuild suggestion list from synced state
   function buildSuggestionsFromState(state: GameState) {

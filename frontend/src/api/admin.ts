@@ -54,5 +54,9 @@ export const adminApi = {
   deleteUser:    (id: number)                         => api.delete<{ message: string }>(`/admin/users/${id}`),
   createUser:    (body: { username: string; email: string; password: string; is_admin: boolean }) =>
                    api.post<AdminUser>('/admin/users', body),
-  resetAllStats: () => api.post<{ message: string; reset_by: string }>('/admin/reset-stats', {}),
+  resetAllStats: () =>
+    api.post<{ message: string; reset_by: string }>(
+      '/admin/reset-stats',
+      { confirm: 'RESET' },       // matches the server-side ResetStatsConfirm model
+    ),
 }
