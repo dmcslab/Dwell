@@ -107,7 +107,15 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter, se
       setLines(prev => [...transition, ...prev].slice(0, MAX_LINES))
       setNewIds(new Set(transition.map(l => l.id)))
     }
-  }, [irPhase, sessionSeed])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [irPhase, sessionSeed])
+  // keyTTPs is intentionally excluded from this dep array.
+  // It comes from scenario.scenario_structure.keyTTPs which is a stable
+  // object reference for the lifetime of a scenario — it never changes
+  // after the scenario loads. Including it would cause the entire log
+  // backlog to regenerate (and scroll to top) on every render that
+  // produces a new array reference, which React may do even when the
+  // contents are identical. If keyTTPs ever becomes dynamic, add it here
+  // and memoize the prop at the callsite with useMemo.
 
   // Streaming interval
   useEffect(() => {

@@ -94,8 +94,12 @@ async def start_session(scenario_id: int, body: StartRequest, request: Request):
         structure     = scenario.scenario_structure or {}
         decision_tree = structure.get("decisionTree", [])
         initial_state = build_initial_state(session_id, scenario_id, decision_tree, scenario.max_attempts)
-        initial_state["participants"] = [{"name": body.player_name, "client_id": "host",
-                                          "joined_at": datetime.now(timezone.utc).isoformat()}]
+        # Do NOT pre-populate participants here. The WebSocket connection calls
+        # add_participant() with the real client UUID — pre-populating with a
+        # hardcoded "host" client_id creates a phantom second participant for
+        # every solo player, causing isMultiPlayer to be true and forcing the
+        # user to pick IR Lead before they can begin.
+        initial_state["participants"] = []
 
         gs = GameSession(session_id=session_id, scenario_id=scenario_id,
                          team_name=body.team_name or None, current_state=initial_state,
