@@ -4,10 +4,42 @@ import { gameApi }      from '../api/game'
 import { scenariosApi } from '../api/scenarios'
 import type { ScenarioSummary } from '../types/scenario'
 
-const DIFF_META: Record<string, { label: string; stripe: string; badge: string; glow: string }> = {
-  easy:   { label: 'EASY',   stripe: 'diff-stripe-easy',   badge: 'bg-emerald-950 text-emerald-400 border-emerald-800', glow: 'hover:shadow-[0_0_20px_-4px_#10b98133]' },
-  medium: { label: 'MEDIUM', stripe: 'diff-stripe-medium', badge: 'bg-amber-950   text-amber-400   border-amber-800',   glow: 'hover:shadow-[0_0_20px_-4px_#f59e0b33]' },
-  hard:   { label: 'HARD',   stripe: 'diff-stripe-hard',   badge: 'bg-red-950     text-red-400     border-red-800',     glow: 'hover:shadow-[0_0_20px_-4px_#ef444433]' },
+const DIFF_META: Record<string, {
+  label:     string
+  icon:      string
+  stripe:    string
+  badge:     string
+  cardBg:    string
+  glow:      string
+  leftGlow:  string
+}> = {
+  easy: {
+    label:    'EASY',
+    icon:     '✓',
+    stripe:   'diff-stripe-easy',
+    badge:    'bg-emerald-950 text-emerald-400 border-emerald-800',
+    cardBg:   '',
+    glow:     'hover:shadow-[0_0_24px_-4px_#10b98133]',
+    leftGlow: 'hover:border-l-emerald-600 border-l-2 border-l-transparent',
+  },
+  medium: {
+    label:    'MEDIUM',
+    icon:     '◈',
+    stripe:   'diff-stripe-medium',
+    badge:    'bg-amber-950 text-amber-400 border-amber-800',
+    cardBg:   '',
+    glow:     'hover:shadow-[0_0_24px_-4px_#f59e0b33]',
+    leftGlow: 'hover:border-l-amber-500 border-l-2 border-l-transparent',
+  },
+  hard: {
+    label:    'HARD',
+    icon:     '⚠',
+    stripe:   'diff-stripe-hard',
+    badge:    'bg-red-950 text-red-400 border-red-900',
+    cardBg:   'bg-gray-900/80',
+    glow:     'hover:shadow-[0_0_28px_-4px_#ef444444]',
+    leftGlow: 'hover:border-l-red-600 border-l-2 border-l-transparent',
+  },
 }
 
 interface Props {
@@ -155,12 +187,15 @@ export function ScenarioSelector({ playerName, onClearName, onSelectWithSession,
                   onClick={() => handleSelect(s.id)}
                   disabled={launching === s.id}
                   style={{ animationDelay: `${idx * 40}ms` }}
-                  className={`relative group bg-gray-900 border border-gray-800 rounded-xl p-5 text-left
-                    transition-all duration-200 cursor-pointer
-                    hover:border-gray-600 hover:-translate-y-0.5
-                    disabled:opacity-60 disabled:cursor-wait
-                    ${meta.stripe} ${meta.glow}
-                    animate-enter`}
+                  className={`relative group border border-gray-800 rounded-xl p-5 text-left
+                  transition-all duration-300 cursor-pointer
+                  hover:border-gray-600 hover:-translate-y-0.5
+                  disabled:opacity-60 disabled:cursor-wait
+                  ${meta.cardBg || 'bg-gray-900'}
+                  ${meta.stripe}
+                  ${meta.glow}
+                  ${meta.leftGlow}
+                  animate-enter`}
                 >
                   {/* Corner brackets */}
                   <div className="absolute top-2 right-2 w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -169,9 +204,12 @@ export function ScenarioSelector({ playerName, onClearName, onSelectWithSession,
 
                   {/* Header row */}
                   <div className="flex items-start justify-between mb-3">
-                    <span className={`hex-badge ${meta.badge}`}>{meta.label}</span>
-                    <span className="text-gray-600 text-xs font-mono">{s.max_attempts}× ATT</span>
-                  </div>
+                  <span className={`hex-badge ${meta.badge} flex items-center gap-1`}>
+                    <span>{meta.icon}</span>
+                    {meta.label}
+                  </span>
+                  <span className="text-gray-600 text-xs font-mono">{s.max_attempts}× ATT</span>
+                </div>
 
                   {/* Title */}
                   <h3 className="text-white font-semibold text-sm mb-2 group-hover:text-cyan-300 transition-colors leading-snug font-ui">
@@ -182,7 +220,12 @@ export function ScenarioSelector({ playerName, onClearName, onSelectWithSession,
                   <p className="text-gray-500 text-xs leading-relaxed line-clamp-3 font-ui">
                     {s.description}
                   </p>
-
+                  {/* Metadata chips */}
+                <div className="flex flex-wrap gap-1.5 mt-3 mb-1">
+                  <span className="text-[11px] font-mono text-gray-600 border border-gray-800 rounded px-1.5 py-0.5">
+                    {s.max_attempts}× attempts
+                  </span>
+                </div>
                   {/* CTA */}
                   <div className="mt-4 flex items-center gap-1.5 text-xs font-mono font-medium text-gray-600 group-hover:text-cyan-400 transition-colors">
                     <span className="group-hover:translate-x-0.5 transition-transform inline-block">

@@ -12,6 +12,7 @@
  *
  * Hint button available once per session for all roles.
  */
+import { useEffect, useState } from 'react'
 import type { DecisionStage, PlayerRole, SuggestionEntry } from '../types/scenario'
 import { ROLE_DEFINITIONS } from '../types/scenario'
 import { AttemptsMeter } from './AttemptsMeter'
@@ -110,7 +111,7 @@ export function VotingPanel({
   const hasHint     = !hintUsed
 
   // Track hint visibility locally
-  const [showHint, setShowHint] = useLiftedState(!!myHint)
+  const [showHint, setShowHint] = useState(!!myHint)
 
   // Show hint when it arrives
   useEffect(() => { if (myHint) setShowHint(true) }, [myHint])
@@ -120,6 +121,21 @@ export function VotingPanel({
     if (isSubmitter) onChoice(i)
     else             onSuggest(i)
   }
+
+  // Keyboard shortcuts — A/B/C/D select options
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (deciding) return
+      // Don't fire if user is typing in an input
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return
+      const idx = ['a', 'b', 'c', 'd'].indexOf(e.key.toLowerCase())
+      if (idx !== -1 && idx < (stage.options?.length ?? 0)) {
+        handleOptionClick(idx)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [deciding, stage])
 
   return (
     <div className="flex flex-col gap-4 p-6 h-full overflow-y-auto animate-enter">
@@ -211,40 +227,53 @@ export function VotingPanel({
               key={i}
               disabled={deciding}
               onClick={() => handleOptionClick(i)}
-              className={`flex flex-col text-left w-full border rounded-xl p-4 transition-all duration-200 group disabled:opacity-50 disabled:cursor-wait
+              className={`relative flex flex-col text-left w-full border-l-2 border rounded-xl p-4
+                transition-all duration-200 group disabled:opacity-50 disabled:cursor-wait min-h-[72px]
                 ${iMySuggested
-                  ? 'bg-sky-950 border-sky-600 ring-1 ring-sky-500/40'
-                  : 'bg-gray-800 border-gray-700 hover:border-cyan-600 hover:bg-gray-750'
+                  ? 'border-l-sky-500  border-sky-600  bg-sky-950     ring-1 ring-sky-500/40'
+                  : 'border-l-gray-700 border-gray-700 bg-gray-800/80 hover:border-l-cyan-500 hover:border-gray-600 hover:bg-gray-800'
                 }`}
             >
               <div className="flex items-start gap-3">
-                {/* Label */}
-                <span className={`shrink-0 w-6 h-6 rounded text-xs font-bold font-mono flex items-center justify-center transition-colors
-                  ${iMySuggested
-                    ? 'bg-sky-700 text-white'
-                    : 'bg-gray-700 group-hover:bg-cyan-800 text-gray-300 group-hover:text-white'
-                  }`}>
+                {/* Label — enlarged, keyboard shortcut hint on hover */}
+                <span
+                  className={`shrink-0 w-7 h-7 rounded text-xs font-bold font-mono flex items-center justify-center transition-all duration-150
+                    ${iMySuggested
+                      ? 'bg-sky-700 text-white'
+                      : 'bg-gray-700 group-hover:bg-cyan-700 text-gray-300 group-hover:text-white'
+                    }`}
+                  title={`Press ${OPTION_LABELS[i]} to select`}
+                >
                   {OPTION_LABELS[i]}
                 </span>
+
                 <span className="text-gray-200 text-sm leading-snug group-hover:text-white transition-colors flex-1 font-ui">
                   {opt.actionText}
                 </span>
-                {/* Suggestion count badge */}
+
+                {/* Suggestion count badge (IR Lead view) */}
                 {suggestionCount > 0 && isSubmitter && (
                   <span className="shrink-0 bg-sky-900 text-sky-300 text-xs font-mono border border-sky-700 rounded-full px-2 py-0.5">
                     {suggestionCount} suggest{suggestionCount > 1 ? 's' : ''}
                   </span>
                 )}
+
+                {/* Keyboard shortcut hint — fades in on hover, hidden when already suggested */}
+                {!iMySuggested && (
+                  <span className="shrink-0 text-[11px] font-mono text-gray-700 group-hover:text-gray-500 transition-colors self-start mt-0.5">
+                    {OPTION_LABELS[i]}
+                  </span>
+                )}
               </div>
 
               {/* Suggestion badges per option */}
-              <div className="ml-9">
+              <div className="ml-10">
                 <SuggestionBadges suggestions={suggestions} optionIndex={i} />
               </div>
 
               {/* "Your suggestion" label */}
               {iMySuggested && (
-                <div className="ml-9 mt-1">
+                <div className="ml-10 mt-1">
                   <span className="text-xs text-sky-400 font-mono">↑ Your suggestion</span>
                 </div>
               )}
@@ -270,13 +299,4 @@ export function VotingPanel({
       )}
     </div>
   )
-}
-
-// ── Tiny local useState wrapper ───────────────────────────────────────────────
-// Avoids pulling in a separate file for a one-line hook
-
-import { useEffect, useState } from 'react'
-
-function useLiftedState<T>(initial: T): [T, (v: T) => void] {
-  return useState<T>(initial)
 }
