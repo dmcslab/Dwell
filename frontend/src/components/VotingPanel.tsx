@@ -162,16 +162,22 @@ export function VotingPanel({
 
       {/* Analyst context — role-specific */}
       {context && (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-3">
-          <p className="text-xs text-gray-500 uppercase tracking-widest mb-1 font-semibold">
-            {roleLabel(role)} Context
+        <div className="bg-gray-800 border-l-2 border-l-gray-500 border border-gray-700 rounded-lg p-3">
+          <p className="text-xs text-gray-500 uppercase tracking-widest mb-1.5 font-semibold flex items-center gap-1.5">
+            📋 Phase Context
+            <span className="text-gray-600 font-normal normal-case tracking-normal">
+              — {roleLabel(role)} view
+            </span>
           </p>
           <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-line">{context}</p>
         </div>
       )}
 
       {/* Decision prompt */}
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+      <div className="bg-gray-900 border-l-2 border-l-cyan-500 border border-gray-700 rounded-lg p-4">
+        <p className="text-xs text-cyan-600 uppercase tracking-widest mb-2 font-semibold flex items-center gap-1.5">
+          ⚠ Active Situation
+        </p>
         <p className="text-gray-100 text-sm leading-relaxed">{stage.prompt}</p>
       </div>
 

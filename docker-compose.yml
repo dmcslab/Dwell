@@ -1,4 +1,12 @@
-version: "3.9"
+# docker-compose.yml — development stack
+#
+# Production: use docker-compose.prod.yml instead:
+#   docker compose -f docker-compose.prod.yml up -d
+# That file removes bind-mounts (source code is baked into images) and
+# enables Redis authentication.
+#
+# The `version` key is intentionally omitted — it is deprecated in
+# Compose v2 and ignored with a warning if present.
 
 networks:
   dwell_net:

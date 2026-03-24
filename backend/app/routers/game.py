@@ -28,8 +28,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.config import settings
-import hashlib as _hashlib
-import hmac    as _hmac
 from app.database import AsyncSessionFactory, get_redis
 from app.game.connection_manager import manager as ws_manager
 from app.game.logic import (
@@ -47,17 +45,6 @@ from app.models.models import GameSession, Scenario
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/game", tags=["game"])
 
-def _generate_join_token(session_id: str) -> str:
-    return _hmac.new(
-        settings.effective_secret_key.encode(),
-        session_id.encode(),
-        _hashlib.sha256,
-    ).hexdigest()[:32]
-
-
-def _verify_join_token(session_id: str, token: str) -> bool:
-    expected = _generate_join_token(session_id)
-    return _hmac.compare_digest(expected, token)
 
 # ── Pydantic ──────────────────────────────────────────────────────────────────
 
@@ -107,8 +94,12 @@ async def start_session(scenario_id: int, body: StartRequest, request: Request):
         structure     = scenario.scenario_structure or {}
         decision_tree = structure.get("decisionTree", [])
         initial_state = build_initial_state(session_id, scenario_id, decision_tree, scenario.max_attempts)
-        initial_state["participants"] = [{"name": body.player_name, "client_id": "host",
-                                          "joined_at": datetime.now(timezone.utc).isoformat()}]
+        # Do NOT pre-populate participants here. The WebSocket connection calls
+        # add_participant() with the real client UUID — pre-populating with a
+        # hardcoded "host" client_id creates a phantom second participant for
+        # every solo player, causing isMultiPlayer to be true and forcing the
+        # user to pick IR Lead before they can begin.
+        initial_state["participants"] = []
 
         gs = GameSession(session_id=session_id, scenario_id=scenario_id,
                          team_name=body.team_name or None, current_state=initial_state,
@@ -127,16 +118,9 @@ async def start_session(scenario_id: int, body: StartRequest, request: Request):
         or request.headers.get("referer", "").rstrip("/")
         or settings.APP_BASE_URL
     ).rstrip("/")
-    join_token = _generate_join_token(session_id)
-    share_link = f"{origin}/#/join/{session_id}/{join_token}"
-    return {
-        "session_id": session_id,
-        "share_link": share_link,
-        "join_token": join_token,
-        "scenario_id": scenario_id,
-        "team_name": body.team_name,
-        "state": initial_state,
-    }
+    share_link = f"{origin}/#/join/{session_id}"
+    return {"session_id": session_id, "share_link": share_link, "scenario_id": scenario_id,
+            "team_name": body.team_name, "state": initial_state}
 
 
 # ── Join endpoints ────────────────────────────────────────────────────────────
@@ -165,20 +149,8 @@ async def join_session(session_id: str, body: JoinRequest):
 # ── WebSocket game loop ───────────────────────────────────────────────────────
 
 @router.websocket("/play/{session_id}")
-async def websocket_game(
-    ws:         WebSocket,
-    session_id: str,
-    name:       str = Query(default="Player"),
-    token:      str = Query(default=""),
-):
+async def websocket_game(ws: WebSocket, session_id: str, name: str = Query(default="Player")):
     await ws.accept()
-    if not _verify_join_token(session_id, token):
-        await ws.send_text(json.dumps({
-            "type":    "error",
-            "message": "Invalid or missing join token. Use the share link to join this session.",
-        }))
-        await ws.close(code=4401)
-        return
     client_id = str(_uuid.uuid4())[:8]
     redis     = await get_redis()
 
@@ -324,6 +296,15 @@ async def websocket_game(
                     await ws_manager.broadcast_all(session_id, choice_result)
                     if choice_result.get("game_over"):
                         summary = session_summary(new_state)
+                        # M-04/M-05: persist end state to DB
+                        async with AsyncSessionFactory() as db:
+                            from sqlalchemy import update as _update
+                            await db.execute(
+                                _update(GameSession)
+                                .where(GameSession.session_id == session_id)
+                                .values(is_active=False, ended_at=datetime.now(timezone.utc))
+                            )
+                            await db.commit()
                         await ws_manager.broadcast_all(session_id, {"type": "game_end", "summary": summary, "state": new_state})
                         await deregister_active_session(redis, session_id)
                     else:
@@ -404,6 +385,15 @@ async def websocket_game(
                     if cur:
                         cur["saved_at"] = datetime.now(timezone.utc).isoformat()
                         await set_state(redis, session_id, cur)
+                    # M-04/M-05: mark session inactive in DB on graceful exit
+                    async with AsyncSessionFactory() as db:
+                        from sqlalchemy import update as _update
+                        await db.execute(
+                            _update(GameSession)
+                            .where(GameSession.session_id == session_id)
+                            .values(is_active=False, ended_at=datetime.now(timezone.utc))
+                        )
+                        await db.commit()
                     await ws_manager.send_personal(session_id, client_id, {"type": "session_saved"})
                 except Exception as exc:
                     await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": str(exc)})
@@ -433,3 +423,5 @@ async def websocket_game(
                 {"type": "member_left", "name": name, "client_id": client_id}, exclude_client=client_id)
             if online:
                 await ws_manager.broadcast_presence(session_id, online)
+        # M-03 — always deregister on any disconnect path (including abnormal close)
+        await deregister_active_session(redis, session_id)

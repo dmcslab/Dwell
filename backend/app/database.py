@@ -35,7 +35,10 @@ _redis: Redis | None = None
 async def get_redis() -> Redis:
     global _redis
     if _redis is None:
-        _redis = Redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
+        _kwargs: dict = {"encoding": "utf-8", "decode_responses": True}
+        if settings.REDIS_PASSWORD:
+            _kwargs["password"] = settings.REDIS_PASSWORD
+        _redis = Redis.from_url(settings.REDIS_URL, **_kwargs)
     return _redis
 
 

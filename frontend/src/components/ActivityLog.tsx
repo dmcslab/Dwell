@@ -2,12 +2,14 @@ import { useEffect, useRef } from 'react'
 import type { ActivityEntry } from '../hooks/useWebSocketGame'
 
 const TYPE_STYLE: Record<ActivityEntry['type'], string> = {
-  correct: 'text-emerald-400',
-  wrong:   'text-red-400',
-  info:    'text-blue-300',
-  system:  'text-gray-400 italic',
-  join:    'text-violet-400',
-  leave:   'text-gray-500',
+  correct:    'text-emerald-400',
+  wrong:      'text-red-400',
+  info:       'text-blue-300',
+  system:     'text-gray-400 italic',
+  join:       'text-violet-400',
+  leave:      'text-gray-500',
+  suggestion: 'text-sky-400',
+  hint:       'text-amber-400',
 }
 
 interface Props { entries: ActivityEntry[] }

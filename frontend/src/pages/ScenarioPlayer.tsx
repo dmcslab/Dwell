@@ -115,7 +115,12 @@ export function ScenarioPlayer({
   useEffect(() => { if (ws.gameState)         setStableGameState(ws.gameState)   }, [ws.gameState])
   useEffect(() => { if (ws.lastChoiceResult)  setShowFeedback(true)              }, [ws.lastChoiceResult])
   useEffect(() => {
-    if (ws.summary && ws.scenario) setTimeout(() => onDebrief(ws.summary!, ws.scenario!), 1500)
+    if (ws.summary && ws.scenario) {
+      const t = setTimeout(() => {
+        if (mountedRef.current) onDebrief(ws.summary!, ws.scenario!)
+      }, 1500)
+      return () => clearTimeout(t)
+    }
   }, [ws.summary])
 
   const handleStart = async () => {

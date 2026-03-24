@@ -11,14 +11,8 @@ const DIFF_META: Record<string, { label: string; stripe: string; badge: string; 
 }
 
 interface Props {
-  onSelect: (id: number) => void
-  onSelectWithSession: (
-    scenarioId:  number,
-    sessionId:   string,
-    playerName:  string,
-    shareLink:   string,
-    joinToken:   string,
-  ) => void
+  // onSelect removed — F-02 fix: prop was declared but never used internally
+  onSelectWithSession: (scenarioId: number, sessionId: string, playerName: string, shareLink: string) => void
 }
 
 export function ScenarioSelector({ onSelectWithSession }: Props) {
@@ -40,7 +34,7 @@ export function ScenarioSelector({ onSelectWithSession }: Props) {
     setLaunching(id)
     try {
       const res = await gameApi.start(id, '', playerName || 'Analyst')
-      onSelectWithSession(id, res.session_id, playerName || 'Analyst', res.share_link, res.join_token)
+      onSelectWithSession(id, res.session_id, playerName || 'Analyst', res.share_link)
     } catch (e: any) {
       setError(e.message)
       setLaunching(null)

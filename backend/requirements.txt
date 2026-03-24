@@ -8,6 +8,12 @@ pydantic[email]>=2.6.0
 pydantic-settings>=2.2.0
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+# bcrypt is pinned to 3.2.2 because passlib 1.7.4 is not compatible with
+# bcrypt >= 4.0 (the bcrypt package dropped the __about__ module that passlib
+# introspects at import time, causing an AttributeError on startup).
+# passlib is effectively unmaintained; the pin keeps the stack working until
+# a migration to bcrypt's native API (bcrypt.hashpw / checkpw) is done.
+# Tracking issue: https://github.com/pyca/bcrypt/issues/684
 bcrypt==3.2.2
 redis[asyncio]>=5.0.0
 python-multipart>=0.0.9
