@@ -11,17 +11,23 @@ const DIFF_META: Record<string, { label: string; stripe: string; badge: string; 
 }
 
 interface Props {
-  // onSelect removed — F-02 fix: prop was declared but never used internally
-  onSelectWithSession: (scenarioId: number, sessionId: string, playerName: string, shareLink: string) => void
+  playerName:          string
+  onClearName:         () => void
+  onSelectWithSession: (
+    scenarioId: number,
+    sessionId:  string,
+    shareLink:  string,
+    joinToken:  string,
+  ) => void
+  onAdmin: () => void
 }
 
-export function ScenarioSelector({ onSelectWithSession }: Props) {
+export function ScenarioSelector({ playerName, onClearName, onSelectWithSession, onAdmin }: Props) {
   const [scenarios,  setScenarios]  = useState<ScenarioSummary[]>([])
   const [filter,     setFilter]     = useState<string>('')
   const [loading,    setLoading]    = useState(true)
   const [launching,  setLaunching]  = useState<number | null>(null)
   const [error,      setError]      = useState('')
-  const [playerName, setPlayerName] = useState('Analyst')
 
   useEffect(() => {
     scenariosApi.list()
@@ -34,7 +40,7 @@ export function ScenarioSelector({ onSelectWithSession }: Props) {
     setLaunching(id)
     try {
       const res = await gameApi.start(id, '', playerName || 'Analyst')
-      onSelectWithSession(id, res.session_id, playerName || 'Analyst', res.share_link)
+      onSelectWithSession(id, res.session_id, res.share_link, res.join_token)
     } catch (e: any) {
       setError(e.message)
       setLaunching(null)
@@ -53,14 +59,30 @@ export function ScenarioSelector({ onSelectWithSession }: Props) {
           </div>
 
           {/* Analyst name input */}
-          <div className="flex items-center gap-2">
-            <span className="text-gray-500 text-xs font-mono">OPERATOR:</span>
-            <input
-              value={playerName}
-              onChange={e => setPlayerName(e.target.value)}
-              placeholder="Analyst"
-              className="op-input w-36"
-            />
+          <div className="flex items-center gap-3">
+            {/* Analyst name display */}
+            <div className="flex items-center gap-2 bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-1.5">
+              <span className="text-gray-500 text-xs font-mono tracking-wider">OPERATOR</span>
+              <span className="text-cyan-300 text-xs font-semibold font-ui">{playerName}</span>
+            </div>
+ 
+            {/* Admin button */}
+            <button
+              onClick={onAdmin}
+              className="px-3 py-1.5 bg-gray-800 border border-gray-700 hover:bg-gray-700 hover:border-gray-600 text-gray-400 hover:text-white text-xs rounded-lg transition-all font-mono"
+              title="Admin dashboard"
+            >
+              ⚙ Admin
+            </button>
+ 
+            {/* Clear name — resets to welcome screen */}
+            <button
+              onClick={onClearName}
+              className="text-xs text-gray-600 hover:text-red-400 font-mono transition-colors"
+              title="Clear name and return to welcome screen"
+            >
+              ✕
+            </button>
           </div>
         </div>
 

@@ -83,7 +83,7 @@ export function ScenarioPlayer({
   initialShareLink, initialRole, initialToken,
   onBack, onDebrief,
 }: Props) {
-  const [setupDone,       setSetupDone]       = useState(!!initialSessionId)
+  const [setupDone,       setSetupDone]       = useState(true)
   const [sessionId,       setSessionId]       = useState(initialSessionId ?? '')
   const [playerName,      setPlayerName]      = useState(initialPlayerName ?? 'Analyst')
   const [teamName,        setTeamName]        = useState('')
@@ -134,30 +134,6 @@ export function ScenarioPlayer({
     } catch (e: any) { setStartErr(e.message) }
     finally { setStarting(false) }
   }
-
-  if (!setupDone) return (
-    <div className="min-h-screen bg-gray-950 bg-data-grid flex items-center justify-center p-6">
-      <div className="bg-gray-900/90 border border-gray-700 rounded-2xl p-8 w-full max-w-md shadow-[0_0_40px_-10px_rgb(0_0_0/0.8)] backdrop-blur-sm animate-enter">
-        <button onClick={onBack} className="text-gray-500 hover:text-gray-300 text-sm mb-6">← Back</button>
-        <h2 className="text-white font-bold text-xl mb-1">Start Simulation</h2>
-        <p className="text-gray-400 text-sm mb-6">{scenarioMeta?.name ?? `Scenario #${scenarioId}`}</p>
-        <div className="flex flex-col gap-4">
-          <div>
-            <label className="text-xs text-gray-400 mb-1 block">Your name</label>
-            <input value={playerName} onChange={e => setPlayerName(e.target.value)} placeholder="Analyst" className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-600" />
-          </div>
-          <div>
-            <label className="text-xs text-gray-400 mb-1 block">Team name (optional)</label>
-            <input value={teamName} onChange={e => setTeamName(e.target.value)} placeholder="Blue Team" className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-600" />
-          </div>
-          {startErr && <p className="text-red-400 text-sm">{startErr}</p>}
-          <button onClick={handleStart} disabled={starting || !playerName.trim()} className="w-full py-3 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors text-sm">
-            {starting ? 'Creating session…' : 'Launch Session →'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
 
   if (isSpectatorMode) return <SpectatorView sessionId={sessionId} playerName={playerName} onLeave={onBack} />
 
