@@ -10,7 +10,7 @@ from app.auth.jwt import (
     revoke_refresh_token, store_refresh_token,
 )
 from app.database import get_db, get_redis
-from app.main import limiter
+from app.limiter import limiter                  # ← from dedicated module
 from app.models.models import User
 from app.schemas.schemas import MessageResponse, RefreshRequest, TokenResponse, UserLogin, UserOut
 
@@ -35,10 +35,10 @@ def _tokens(user: User) -> tuple[str, str]:
 
 
 @router.post("/login", response_model=TokenResponse)
-@limiter.limit("10/minute")          # 10 attempts per IP per minute
-@limiter.limit("3/5seconds")         # burst guard: max 3 in any 5-second window
+@limiter.limit("10/minute")       # 10 attempts per IP per minute
+@limiter.limit("3/5seconds")      # burst guard: max 3 in any 5-second window
 async def login(
-    request: Request,                # required by slowapi — must be first param
+    request: Request,             # required by slowapi — must be first param
     body: UserLogin,
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
