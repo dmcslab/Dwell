@@ -1655,18 +1655,32 @@ SCENARIOS.append({
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def seed():
+    # SKIP_SEED_UPDATE=true  → only INSERT missing scenarios; never overwrite
+    #                          existing ones.  Admin UI edits are preserved.
+    # SKIP_SEED_UPDATE=false → INSERT new + UPDATE all existing scenarios from
+    #                          the seed file.  Use intentionally after pulling
+    #                          a release with updated scenario content, then
+    #                          set back to true.
+    import os
+    skip_update = os.getenv("SKIP_SEED_UPDATE", "false").lower() == "true"
+
     engine = create_async_engine(settings.DATABASE_URL, echo=False)
     async_session = async_sessionmaker(engine, expire_on_commit=False)
     async with async_session() as session:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+
         existing = await session.execute(select(Scenario.name))
         existing_names = {row[0] for row in existing.fetchall()}
-        added, skipped = 0, 0
-        updated = 0
+        added, skipped, updated = 0, 0, 0
+
         for data in SCENARIOS:
             if data["name"] in existing_names:
-                # Update scenario_structure so expanded options take effect
+                if skip_update:
+                    print(f"  ⏭  Skipping (SKIP_SEED_UPDATE=true): {data['name']}")
+                    skipped += 1
+                    continue
+                # SKIP_SEED_UPDATE is false — overwrite with latest content
                 await session.execute(
                     __import__('sqlalchemy').update(Scenario)
                     .where(Scenario.name == data["name"])
@@ -1679,23 +1693,36 @@ async def seed():
                 )
                 print(f"  🔄  Updated: {data['name']}")
                 updated += 1
-                skipped += 1
                 continue
+
             session.add(Scenario(
                 name=data["name"], description=data["description"],
-                initial_prompt=data["initial_prompt"], difficulty_level=data["difficulty_level"],
-                max_attempts=data["max_attempts"], scenario_structure=data["scenario_structure"],
+                initial_prompt=data["initial_prompt"],
+                difficulty_level=data["difficulty_level"],
+                max_attempts=data["max_attempts"],
+                scenario_structure=data["scenario_structure"],
                 created_by=None,
             ))
             print(f"  ✅  Adding: {data['name']}")
             added += 1
+
         await session.commit()
-        print(f"\n🎯 Seed complete — {added} added, {skipped} skipped.")
+
+        if skip_update:
+            print(
+                f"\n🎯 Seed complete — {added} added, {skipped} skipped "
+                f"(updates suppressed — SKIP_SEED_UPDATE=true)."
+            )
+        else:
+            print(f"\n🎯 Seed complete — {added} added, {updated} updated.")
+
         print("\nScenarios loaded:")
         for s in SCENARIOS:
             phase = s["scenario_structure"]["irPhase"][:50]
             print(f"  [{s['difficulty_level'].upper():6}] {s['name']} — {phase}")
+
     await engine.dispose()
+
 
 if __name__ == "__main__":
     asyncio.run(seed())
