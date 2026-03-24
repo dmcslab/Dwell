@@ -137,6 +137,103 @@ Full setup guide: [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md)
 
 ---
 
+## Upgrading Dwell
+
+Run the upgrade script from the repo root. It checks GitHub for updates, and if any are available, downloads and applies them while preserving all your data and configuration.
+
+**macOS / Linux**
+```bash
+./upgrade.sh
+```
+
+**Windows**
+```
+upgrade.bat
+```
+
+If you are already on the latest version, the script will tell you and exit — nothing is changed.
+
+---
+
+### What gets preserved
+
+| Item | Safe? |
+|---|---|
+| All game sessions and history | ✅ Always |
+| User accounts and passwords | ✅ Always |
+| Custom scenarios built in the Admin panel | ✅ Requires `SKIP_SEED_UPDATE=true` in `backend/.env` |
+| Your `backend/.env` configuration | ✅ Backed up before the update, restored automatically if changed |
+
+---
+
+### Before your first upgrade — one-time setup
+
+If you have built custom scenarios through the Admin panel, add this line to `backend/.env` to protect them:
+
+```bash
+SKIP_SEED_UPDATE=true
+```
+
+Without it, the seed script will overwrite custom scenarios on restart. Set it once and you will never need to worry about it again.
+
+---
+
+### What the script does
+
+1. Fetches the latest code from `https://github.com/dmcslab/Dwell.git` (branch: `main`) **without changing anything locally**
+2. If no updates are found — exits immediately with a message
+3. If updates are found — shows a summary of what is new
+4. Backs up `backend/.env`
+5. Stops containers — your database and session data are untouched
+6. Pulls the updates
+7. Restores your `.env` if the update modified it
+8. Rebuilds images and restarts services
+9. Automatically rebuilds the scenario-worker image if its files changed
+
+---
+
+### Manual upgrade (if you prefer)
+
+```bash
+# macOS / Linux
+git pull origin main
+docker compose up -d --build
+
+# Only if scenario-worker files changed
+./build_worker.sh
+```
+
+---
+
+### ⚠ What NOT to do
+
+```bash
+# NEVER run this — the -v flag destroys your database and all data
+docker compose down -v
+```
+
+`docker compose down` without `-v` is completely safe — volumes are always preserved.
+
+---
+
+### Something went wrong?
+
+Your `.env` is always backed up at `backend/.env.upgrade-backup` before any changes are made. To restore it:
+
+```bash
+cp backend/.env.upgrade-backup backend/.env
+docker compose restart backend
+```
+
+To roll back to a previous version:
+
+```bash
+git log --oneline -10          # find the version you want
+git checkout <commit-hash>
+docker compose up -d --build
+```
+---
+
 ## Security Notes
 
 Dwell is designed for **local / private-network deployment** as a training tool.
