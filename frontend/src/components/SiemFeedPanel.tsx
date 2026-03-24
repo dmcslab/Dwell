@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import {
   generateLogBatch,
   generateLogLine,
+  hashSeed,
   SEVERITY_CLASSES,
   SEVERITY_DOT,
   SOURCE_CLASSES,
@@ -15,7 +16,11 @@ const STREAM_INTERVAL = 2800  // ms between new lines during deciding phase
 const BURST_INTERVAL  = 600   // ms during encryption / worm phases (panic mode)
 const MAX_LINES       = 120   // cap to avoid memory growth
 
-const PANIC_PHASES = ['containment', 'eradication', 'encryption']
+// Panic mode triggers on phases that ARE crisis phases, not phases that merely
+// mention related words in their description (e.g. "no encryption" in Detection).
+// startsWith() is intentional — it matches "Containment, Eradication & Recovery"
+// and "Emergency Response" while ignoring "Detection & Analysis (no encryption...)".
+const PANIC_PHASE_PREFIXES = ['containment', 'eradication', 'emergency']
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -54,13 +59,14 @@ function LogRow({ line, isNew }: { line: SiemLogLine; isNew: boolean }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface Props {
-  irPhase:     string
-  keyTTPs:     string[]
-  paused?:     boolean     // pause streaming when not on deciding phase
-  roleFilter?: string[]    // if set, only show logs from these sources (role-based)
+  irPhase:      string
+  keyTTPs:      string[]
+  paused?:      boolean    // pause streaming when not on deciding phase
+  roleFilter?:  string[]   // if set, only show logs from these sources (role-based)
+  sessionSeed?: number     // stable seed shared by all clients in the same session
 }
 
-export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter }: Props) {
+export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter, sessionSeed }: Props) {
   const [lines,      setLines]     = useState<SiemLogLine[]>([])
   const [newIds,     setNewIds]    = useState<Set<number>>(new Set())
   const [autoScroll, setAutoScroll] = useState(true)
@@ -70,22 +76,38 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter }: 
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Detect panic mode from phase
+  // H1 fix: use startsWith so "Detection & Analysis (no encryption...)" never triggers
   useEffect(() => {
-    const lp = irPhase.toLowerCase()
-    setPanicMode(PANIC_PHASES.some(p => lp.includes(p)))
+    const lp = irPhase.toLowerCase().trimStart()
+    setPanicMode(PANIC_PHASE_PREFIXES.some(p => lp.startsWith(p)))
   }, [irPhase])
 
-  // Initial backlog on mount / phase change
+  // Track whether this is the first mount (needs full backlog) vs a phase transition
+  const isFirstMount = useRef(true)
+
+  // On first mount: generate a full backlog.
+  // On phase change: prepend a small contextual batch to the existing history
+  // so analysts keep the logs they were reading instead of losing them.
+  // H2 fix: seeded so all clients in the same session see the same initial backlog.
   useEffect(() => {
-    const initial = generateLogBatch(irPhase, keyTTPs, INITIAL_LINES)
-    // Stagger timestamps backwards so it looks like a real log history
-    const stamped = initial.map((l, i) => ({
-      ...l,
-      ts: offsetTs(l.ts, -(INITIAL_LINES - i) * 3000),
-    }))
-    setLines(stamped)
-  }, [irPhase])  // eslint-disable-line react-hooks/exhaustive-deps
+    if (paused && !isFirstMount.current) return   // L2: skip phase transitions while paused
+    const seed = sessionSeed !== undefined ? sessionSeed ^ hashSeed(irPhase) : undefined
+
+    if (isFirstMount.current) {
+      isFirstMount.current = false
+      const initial = generateLogBatch(irPhase, keyTTPs, INITIAL_LINES, seed)
+      const stamped = initial.map((l, i) => ({
+        ...l,
+        ts: offsetTs(l.ts, -(INITIAL_LINES - i) * 3000),
+      }))
+      setLines(stamped)
+    } else {
+      // Phase advanced — inject 4 transition lines at the top, keep full history
+      const transition = generateLogBatch(irPhase, keyTTPs, 4, seed)
+      setLines(prev => [...transition, ...prev].slice(0, MAX_LINES))
+      setNewIds(new Set(transition.map(l => l.id)))
+    }
+  }, [irPhase, sessionSeed])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Streaming interval
   useEffect(() => {
@@ -170,7 +192,7 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter }: 
         <div className="flex gap-2 flex-wrap">
           {/* Severity filter */}
           <div className="flex items-center gap-1">
-            {(['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'INFO'] as const).map(s => (
+            {(['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'WARN', 'INFO'] as const).map(s => (
               <button
                 key={s}
                 onClick={() => setFilterSev(s)}
@@ -186,8 +208,8 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter }: 
           </div>
 
           {/* Source filter */}
-          <div className="flex items-center gap-1 ml-auto">
-            {(['ALL', 'EDR', 'WinEvent', 'Firewall', 'Sysmon', 'SIEM'] as const).map(s => (
+          <div className="flex items-center gap-1 ml-auto flex-wrap justify-end">
+            {(['ALL', 'EDR', 'WinEvent', 'Sysmon', 'AV', 'Firewall', 'DNS', 'Proxy', 'SIEM'] as const).map(s => (
               <button
                 key={s}
                 onClick={() => setFilterSrc(s)}

@@ -38,22 +38,50 @@ const PROCESS_LEGIT = ['svchost.exe', 'explorer.exe', 'lsass.exe', 'wininit.exe'
 const PROCESS_SUSP  = ['powershell.exe', 'cmd.exe', 'wscript.exe', 'cscript.exe', 'mshta.exe', 'regsvr32.exe', 'certutil.exe', 'bitsadmin.exe', 'wmic.exe', 'rundll32.exe']
 const PROCESS_TOOLS = ['psexec.exe', 'psexesvc.exe', 'mimikatz.exe', 'cobalt_strike.exe', 'vssadmin.exe', 'wevtutil.exe', 'net.exe', 'nltest.exe', 'bloodhound.exe', 'rclone.exe', 'adfind.exe']
 
+// ── Seeded PRNG ───────────────────────────────────────────────────────────────
+// Enables the initial log backlog to be deterministic per session+phase so all
+// players in the same multiplayer session see the same starting log context.
+
+let _rand: () => number = Math.random.bind(Math)
+
+function mulberry32(seed: number): () => number {
+  let s = seed
+  return (): number => {
+    s = (s + 0x6D2B79F5) | 0
+    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 0x100000000
+  }
+}
+
+/**
+ * Derive a stable numeric seed from a string (e.g. session_id).
+ * Exported so ScenarioPlayer can compute it once and pass it as a prop.
+ */
+export function hashSeed(str: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 0x01000193)
+  }
+  return h >>> 0
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 let _logId = 0
 const nextId = () => ++_logId
 
 function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]
+  return arr[Math.floor(_rand() * arr.length)]
 }
 
 function pickN<T>(arr: T[], n: number): T[] {
-  const shuffled = [...arr].sort(() => Math.random() - 0.5)
+  const shuffled = [...arr].sort(() => _rand() - 0.5)
   return shuffled.slice(0, n)
 }
 
 function randInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min
+  return Math.floor(_rand() * (max - min + 1)) + min
 }
 
 function fmtTs(offsetMs = 0): string {
@@ -76,7 +104,9 @@ function randPort(): number {
 }
 
 function randHash(len = 8): string {
-  return Math.random().toString(16).slice(2, 2 + len).toUpperCase()
+  return Array.from({ length: len }, () =>
+    Math.floor(_rand() * 16).toString(16)
+  ).join('').toUpperCase()
 }
 
 // ── Log templates organised by TTP category ───────────────────────────────────
@@ -178,6 +208,61 @@ const TEMPLATES: Record<string, LogTemplate[]> = {
     () => ({ severity: 'WARN',     source: 'WinEvent', host: pick(WS_HOSTS),  eventId: '4625',      message: `Failed logon — Account: ${pick(['jdoe','msmith'])}@domain.local — wrong password — LogonType: 2` }),
   ],
 
+  // ── BEC / Vishing / Financial Fraud (T1598, T1657) ───────────────────────
+  bec: [
+    () => ({ severity: 'HIGH',     source: 'SIEM',     host: 'SRV-EXCH01',    eventId: 'EXCH-4010',  message: `Exchange audit: mail forwarding rule created — recipient: ${randHash(8).toLowerCase()}@gmail.com — actor: ${pick(['jdoe','msmith','awhite'])}` }),
+    () => ({ severity: 'HIGH',     source: 'SIEM',     host: 'SRV-EXCH01',    eventId: 'EXCH-4020',  message: `OAuth app consent grant: Mail.Read + Mail.ReadWrite — app: '${pick(['PDF Converter Pro','SharePoint Sync','Teams Backup'])}' — user: ${pick(['CEO','CFO','Director'])}@domain.local` }),
+    () => ({ severity: 'CRITICAL', source: 'Proxy',    host: pick(WS_HOSTS),  eventId: 'PROXY-6601', message: `OWA bulk download: ${randInt(8,40)}GB mailbox export via browser — user: finance_director — not a managed backup job` }),
+    () => ({ severity: 'HIGH',     source: 'WinEvent', host: 'SRV-EXCH01',    eventId: '4648',       message: `Anomalous logon: Exchange mailbox access from ${randIp(EXTERNAL_IPS)} — account: CFO — no MFA event correlated` }),
+    () => ({ severity: 'CRITICAL', source: 'SIEM',     host: 'SIEM-CORE',     eventId: 'SIEM-BEC1',  message: `BEC correlation: inbox rule + OAuth grant + external logon within 22min — same account — high-confidence compromise` }),
+    () => ({ severity: 'HIGH',     source: 'Proxy',    host: pick(WS_HOSTS),  eventId: 'PROXY-6602', message: `Outbound POST to financial portal — not matching known payment workflow — source: ${pick(['SRV-EXCH01','WS-FIN-04'])}` }),
+    () => ({ severity: 'MEDIUM',   source: 'DNS',      host: pick(WS_HOSTS),  eventId: 'DNS-6601',   message: `MX lookup for attacker-controlled domain: ${randHash(8).toLowerCase()}-payments.com — possible pretexting infrastructure` }),
+  ],
+
+  // ── Webshell / Public-Facing Exploit (T1190, T1505) ───────────────────────
+  webshell: [
+    () => ({ severity: 'CRITICAL', source: 'Proxy',    host: 'SRV-EXCH01',    eventId: 'IIS-5001',   message: `Suspicious POST: /owa/auth/${randHash(8).toLowerCase()}.aspx — 200 OK — 4KB response — file not in known IIS app list` }),
+    () => ({ severity: 'CRITICAL', source: 'WinEvent', host: 'SRV-EXCH01',    eventId: '4688',       message: `w3wp.exe spawned: cmd.exe /c whoami — IIS worker process executing OS commands — webshell activity` }),
+    () => ({ severity: 'HIGH',     source: 'Sysmon',   host: 'SRV-EXCH01',    eventId: 'SYSMON-11',  message: `File created in Exchange OWA path: ${randHash(8).toLowerCase()}.aspx — parent: w3wp.exe — not a legitimate OWA file` }),
+    () => ({ severity: 'CRITICAL', source: 'EDR',      host: 'SRV-EXCH01',    eventId: 'EDR-7701',   message: `ProxyLogon/ProxyShell pattern: SSRF request to Exchange EWS endpoint — pre-auth bypass attempt — CVE-2021-26855` }),
+    () => ({ severity: 'HIGH',     source: 'WinEvent', host: 'SRV-SQL01',     eventId: '4688',       message: `sqlservr.exe → xp_cmdshell → powershell.exe — SQL injection command execution — T1190` }),
+    () => ({ severity: 'MEDIUM',   source: 'Proxy',    host: 'SRV-EXCH01',    eventId: 'IIS-5002',   message: `Repeated POST to /aspnet_client/ — 404 then 200 — automated webshell installer pattern — src: ${randIp(EXTERNAL_IPS)}` }),
+    () => ({ severity: 'HIGH',     source: 'Sysmon',   host: pick(SRV_HOSTS), eventId: 'SYSMON-3',   message: `w3wp.exe outbound connection: ${randIp(EXTERNAL_IPS)}:${randPort()} — IIS worker should not initiate outbound — C2 from webshell` }),
+  ],
+
+  // ── Wiper / Data Destruction / Supply Chain (T1485, T1195) ────────────────
+  wiper: [
+    () => ({ severity: 'CRITICAL', source: 'EDR',      host: pick(ALL_HOSTS), eventId: 'EDR-9800',   message: `MBR overwrite detected: raw disk write to sector 0 — process: ${pick(['update_svc.exe','patch_installer.exe','svchost32.exe'])} — wiper pattern` }),
+    () => ({ severity: 'CRITICAL', source: 'Sysmon',   host: pick(ALL_HOSTS), eventId: 'SYSMON-11',  message: `Mass file deletion: ${randInt(5000,50000)} files deleted in ${randInt(20,120)}s — no .tmp or recycle bin intermediary — direct wipe` }),
+    () => ({ severity: 'CRITICAL', source: 'WinEvent', host: pick(ALL_HOSTS), eventId: '4688',       message: `Process: cipher.exe /w:C:\\ — secure wipe of free space — parent: ${pick(['update_svc.exe','MsMpEng.exe'])} — T1485` }),
+    () => ({ severity: 'CRITICAL', source: 'EDR',      host: pick(WS_HOSTS),  eventId: 'EDR-9801',   message: `Software update installed: ${pick(['vendor-patch-kb4.msi','security-update-Q4.exe','agent-deploy.exe'])} — post-install: wiping behaviour detected — supply chain indicator` }),
+    () => ({ severity: 'HIGH',     source: 'AV',       host: pick(ALL_HOSTS), eventId: 'AV-8801',    message: `Signature mismatch on update binary: expected SHA256 ${randHash(16)} — actual ${randHash(16)} — authenticode verification FAILED` }),
+    () => ({ severity: 'CRITICAL', source: 'SIEM',     host: 'SIEM-CORE',     eventId: 'SIEM-CORR',  message: `Wiper propagation: ${randInt(8,28)} hosts simultaneously losing disk I/O — not ransomware (no C2 key exchange) — destructive wiper` }),
+    () => ({ severity: 'CRITICAL', source: 'WinEvent', host: pick(ALL_HOSTS), eventId: '4688',       message: `bootsect.exe /nt60 — MBR replacement — parent: update_svc.exe — boot sector overwrite — system will not recover` }),
+  ],
+
+  // ── Brute Force / Pass-the-Hash / Pass-the-Ticket (T1110, T1550) ──────────
+  brute_force: [
+    () => ({ severity: 'HIGH',     source: 'WinEvent', host: pick(SRV_HOSTS), eventId: '4625',       message: `Failed logon × ${randInt(40,200)} in 120s — Account: Administrator — Source: ${randIp(EXTERNAL_IPS)} — external RDP brute force` }),
+    () => ({ severity: 'HIGH',     source: 'Firewall', host: 'SRV-FW01',      eventId: 'FW-3301',    message: `Allow TCP/3389 ${randIp(EXTERNAL_IPS)} → SRV-TERM01 — ${randInt(50,300)} connection attempts in 5min — brute force pattern` }),
+    () => ({ severity: 'CRITICAL', source: 'WinEvent', host: pick(SRV_HOSTS), eventId: '4624',       message: `Successful logon after ${randInt(30,120)} failures — Account: Administrator — LogonType: 10 (RemoteInteractive) — brute force success` }),
+    () => ({ severity: 'CRITICAL', source: 'EDR',      host: pick(SRV_HOSTS), eventId: 'EDR-8830',   message: `Pass-the-Hash: NTLM auth using stolen hash — no interactive logon precursor — source: ${randIp(INTERNAL_IPS)} — T1550.002` }),
+    () => ({ severity: 'CRITICAL', source: 'WinEvent', host: pick(SRV_HOSTS), eventId: '4769',       message: `Pass-the-Ticket: Kerberos TGS — ticket sourced from memory dump, not legitimate TGT exchange — T1550.003` }),
+    () => ({ severity: 'HIGH',     source: 'SIEM',     host: 'SIEM-CORE',     eventId: 'SIEM-CORR',  message: `Credential stuffing correlation: ${randInt(80,400)} accounts tested in 10min — password spray from ${randIp(EXTERNAL_IPS)} — VPN portal` }),
+    () => ({ severity: 'HIGH',     source: 'WinEvent', host: pick(SRV_HOSTS), eventId: '4771',       message: `Kerberos pre-authentication failed × ${randInt(15,60)} — Account: ${pick(['svc_backup','svc_wsus','helpdesk'])} — possible spray` }),
+  ],
+
+  // ── GPO Abuse / AV Disable / Impair Defenses (T1484, T1562) ──────────────
+  gpo_abuse: [
+    () => ({ severity: 'CRITICAL', source: 'WinEvent', host: 'SRV-DC01',      eventId: '5136',       message: `AD object modified: GroupPolicyObject — name: 'Security Baseline' — changed by: Administrator — GPO modified (T1484)` }),
+    () => ({ severity: 'CRITICAL', source: 'WinEvent', host: pick(ALL_HOSTS), eventId: '7036',       message: `Service stopped: Windows Defender Antivirus Service (WinDefend) — by GPO — AV disabled domain-wide` }),
+    () => ({ severity: 'CRITICAL', source: 'SIEM',     host: 'SIEM-CORE',     eventId: 'SIEM-CORR',  message: `GPO push correlation: AV disabled on ${randInt(40,200)} hosts within 90s — malicious GPO applied — T1562.001` }),
+    () => ({ severity: 'HIGH',     source: 'WinEvent', host: 'SRV-DC01',      eventId: '5136',       message: `GPO setting changed: HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender — DisableAntiSpyware = 1 — malicious policy` }),
+    () => ({ severity: 'HIGH',     source: 'Sysmon',   host: pick(SRV_HOSTS), eventId: 'SYSMON-13',  message: `Registry: HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Features\\TamperProtection = 0 — Defender tamper protection disabled` }),
+    () => ({ severity: 'HIGH',     source: 'WinEvent', host: 'SRV-DC01',      eventId: '4719',       message: `System audit policy changed — audit log collection disabled — actor: Administrator — covering tracks before deploy` }),
+    () => ({ severity: 'MEDIUM',   source: 'AV',       host: pick(ALL_HOSTS), eventId: 'AV-9901',    message: `Real-time protection disabled — policy override applied — AV engine unloaded — no EDR fallback configured` }),
+  ],
+
   // ── Recovery / Post-incident ───────────────────────────────────────────────
   recovery: [
     () => ({ severity: 'INFO',     source: 'WinEvent', host: pick(SRV_HOSTS), eventId: '4720',      message: `User account created: IR_BreakGlass_${randInt(10,99)} — by: IR_Analyst — emergency response account` }),
@@ -213,21 +298,44 @@ const TTP_CATEGORY_MAP: Record<string, string[]> = {
   'T1656': ['phishing'],
   'T1621': ['phishing', 'lateral'],
   'T1569': ['lateral', 'encryption'],
+  // ── Previously unmapped TTPs (C1 fix) ─────────────────────────────────────
+  'T1016': ['lateral'],                          // System Network Config Discovery
+  'T1071': ['c2'],                               // Application Layer Protocol (C2 over HTTP/DNS/SMTP)
+  'T1074': ['exfil'],                            // Data Staged
+  'T1098': ['credential', 'lateral'],            // Account Manipulation
+  'T1110': ['brute_force', 'credential'],        // Brute Force
+  'T1190': ['webshell', 'lateral'],              // Exploit Public-Facing Application
+  'T1195': ['wiper'],                            // Supply Chain Compromise
+  'T1204': ['phishing'],                         // User Execution (trojanised file/installer)
+  'T1484': ['gpo_abuse', 'lateral'],             // Group Policy Modification
+  'T1485': ['wiper'],                            // Data Destruction (wiper)
+  'T1505': ['webshell', 'c2'],                   // Server Software Component (webshell)
+  'T1550': ['brute_force', 'credential'],        // Use Alternate Authentication Material (PtH/PtT)
+  'T1562': ['gpo_abuse', 'evasion'],             // Impair Defenses (AV disable via GPO)
+  'T1598': ['bec', 'phishing'],                  // Phishing for Information (vishing/pretexting)
+  'T1657': ['bec', 'exfil'],                     // Financial Theft (BEC wire fraud)
 }
 
 // ── IR Phase → weighted category mix ──────────────────────────────────────────
 
 const PHASE_WEIGHTS: Record<string, { categories: string[]; baselineRatio: number }> = {
-  'Preparation':                  { categories: ['baseline', 'evasion'],                          baselineRatio: 0.7 },
-  'Detection & Analysis':         { categories: ['phishing', 'c2', 'evasion', 'credential'],      baselineRatio: 0.3 },
-  'Containment':                  { categories: ['lateral', 'smb_worm', 'encryption', 'c2'],      baselineRatio: 0.15 },
-  'Containment, Eradication & Recovery': { categories: ['encryption', 'lateral', 'recovery'],    baselineRatio: 0.2 },
-  'Eradication & Recovery':       { categories: ['recovery', 'baseline'],                         baselineRatio: 0.4 },
-  'Post-Incident Activity':       { categories: ['recovery', 'baseline'],                         baselineRatio: 0.6 },
+  'Preparation':                        { categories: ['baseline', 'evasion', 'gpo_abuse'],                             baselineRatio: 0.7  },
+  'Detection & Analysis':               { categories: ['phishing', 'c2', 'evasion', 'credential', 'bec', 'webshell', 'brute_force'], baselineRatio: 0.3  },
+  'Containment':                        { categories: ['lateral', 'smb_worm', 'encryption', 'c2', 'webshell', 'gpo_abuse', 'wiper'], baselineRatio: 0.15 },
+  'Containment, Eradication & Recovery':{ categories: ['encryption', 'lateral', 'recovery', 'wiper', 'gpo_abuse'],     baselineRatio: 0.2  },
+  'Eradication & Recovery':             { categories: ['recovery', 'baseline'],                                         baselineRatio: 0.4  },
+  'Post-Incident Activity':             { categories: ['recovery', 'baseline'],                                         baselineRatio: 0.6  },
+  // ── Emergency / crisis phases used in branch stages ───────────────────────
+  'Emergency Containment':              { categories: ['lateral', 'smb_worm', 'encryption', 'c2', 'wiper'],            baselineRatio: 0.05 },
+  'Emergency Response':                 { categories: ['lateral', 'encryption', 'c2', 'credential'],                   baselineRatio: 0.1  },
 }
 
 function getPhaseKey(irPhase: string): string {
-  for (const key of Object.keys(PHASE_WEIGHTS)) {
+  // Sort keys longest-first so specific keys ("Containment, Eradication & Recovery")
+  // always match before shorter substrings ("Containment"). Without this,
+  // dict insertion order causes "Containment" to win for every eradication stage.
+  const keys = Object.keys(PHASE_WEIGHTS).sort((a, b) => b.length - a.length)
+  for (const key of keys) {
     if (irPhase.toLowerCase().includes(key.toLowerCase())) return key
   }
   return 'Detection & Analysis'
@@ -238,12 +346,21 @@ function getPhaseKey(irPhase: string): string {
 /**
  * Generate a batch of log lines appropriate for the given scenario context.
  * `keyTTPs` are parsed to weight towards relevant attack categories.
+ * Pass `seed` (derived from session_id) to make the batch identical across
+ * all clients in the same multiplayer session.
  */
 export function generateLogBatch(
   irPhase:   string,
   keyTTPs:   string[],
   count      = 6,
+  seed?:     number,
 ): SiemLogLine[] {
+  // Swap in seeded PRNG for this call so all clients get the same batch
+  const prevRand = _rand
+  if (seed !== undefined) {
+    _rand = mulberry32(seed ^ hashSeed(irPhase))
+  }
+
   const phaseKey   = getPhaseKey(irPhase)
   const config     = PHASE_WEIGHTS[phaseKey] ?? PHASE_WEIGHTS['Detection & Analysis']
 
@@ -258,7 +375,7 @@ export function generateLogBatch(
   const lines: SiemLogLine[] = []
 
   for (let i = 0; i < count; i++) {
-    const isBaseline = Math.random() < config.baselineRatio
+    const isBaseline = _rand() < config.baselineRatio
     const category   = isBaseline ? 'baseline' : pick(uniqueCategories)
     const pool       = TEMPLATES[category] ?? TEMPLATES['baseline']
     const template   = pick(pool)
@@ -266,18 +383,40 @@ export function generateLogBatch(
 
     lines.push({
       id:  nextId(),
-      ts:  fmtTs(Math.random() < 0.3 ? randInt(0, 5000) : 0),
+      ts:  fmtTs(_rand() < 0.3 ? randInt(0, 5000) : 0),
       ...entry,
     })
   }
 
-  // Sort by time descending (newest first)
-  return lines.sort((a, b) => b.ts.localeCompare(a.ts))
+  // Restore previous random function before sorting/returning
+  _rand = prevRand
+
+  // Sort by time descending (newest first) — midnight-crossing safe
+  return lines.sort((a, b) => compareTs(a.ts, b.ts))
 }
 
 /**
- * Generate a single new log line (used for streaming).
+ * Convert an HH:MM:SS.mmm timestamp string to milliseconds since midnight.
  */
+function tsToMs(ts: string): number {
+  const [h, m, rest] = ts.split(':')
+  const [s, ms]      = rest.split('.')
+  return (Number(h) * 3600 + Number(m) * 60 + Number(s)) * 1000 + Number(ms)
+}
+
+/**
+ * Compare two HH:MM:SS.mmm timestamps with midnight-crossing awareness.
+ * If the two times differ by more than 12 hours, assume they straddle midnight
+ * and adjust accordingly — so "23:59" correctly sorts as older than "00:01".
+ * Returns positive when b is newer (for descending / newest-first sort).
+ */
+function compareTs(a: string, b: string): number {
+  const DAY  = 86_400_000
+  let   diff = tsToMs(b) - tsToMs(a)
+  if (diff >  DAY / 2) diff -= DAY
+  if (diff < -DAY / 2) diff += DAY
+  return diff
+}
 export function generateLogLine(
   irPhase: string,
   keyTTPs: string[],

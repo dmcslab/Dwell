@@ -29,7 +29,7 @@ export function useReportPdf() {
     doc.setTextColor(148, 163, 184)       // gray-400
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
-    doc.text('Incident Response Training — Debrief Report', margin, 19)
+    doc.text('Dwell — Incident Response Training — Debrief Report', margin, 19)
 
     const outcome = summary.outcome === 'complete' ? 'PASSED' : 'FAILED'
     const outcomeColor: [number, number, number] = summary.outcome === 'complete' ? [52, 211, 153] : [248, 113, 113]
