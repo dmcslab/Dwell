@@ -73,7 +73,17 @@ interface Props {
   onDebrief: (summary: SessionSummary, scenario: ScenarioFull) => void
 }
 
+<<<<<<< Updated upstream
 export function ScenarioPlayer({ scenarioId, initialSessionId, initialPlayerName, initialShareLink, initialRole, onBack, onDebrief }: Props) {
+=======
+export function ScenarioPlayer({
+  scenarioId, initialSessionId, initialPlayerName,
+  initialShareLink, initialRole, initialToken,
+  onBack, onDebrief,
+}: Props) {
+  const mountedRef = useRef(true)
+  useEffect(() => () => { mountedRef.current = false }, [])
+>>>>>>> Stashed changes
   const [setupDone,       setSetupDone]       = useState(!!initialSessionId)
   const [sessionId,       setSessionId]       = useState(initialSessionId ?? '')
   const [playerName,      setPlayerName]      = useState(initialPlayerName ?? 'Analyst')
@@ -105,7 +115,12 @@ export function ScenarioPlayer({ scenarioId, initialSessionId, initialPlayerName
   useEffect(() => { if (ws.gameState)         setStableGameState(ws.gameState)   }, [ws.gameState])
   useEffect(() => { if (ws.lastChoiceResult)  setShowFeedback(true)              }, [ws.lastChoiceResult])
   useEffect(() => {
-    if (ws.summary && ws.scenario) setTimeout(() => onDebrief(ws.summary!, ws.scenario!), 1500)
+    if (ws.summary && ws.scenario) {
+      const t = setTimeout(() => {
+        if (mountedRef.current) onDebrief(ws.summary!, ws.scenario!)
+      }, 1500)
+      return () => clearTimeout(t)
+    }
   }, [ws.summary])
 
   const handleStart = async () => {

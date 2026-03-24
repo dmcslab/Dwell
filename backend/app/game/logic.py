@@ -1,11 +1,17 @@
 """Pure-function game rules. No DB or Redis calls.
-
+ 
+SOURCE OF TRUTH — do not duplicate this file.
+The scenario-worker image copies this file at build time via its Dockerfile:
+    COPY backend/app/game/logic.py ./app/logic.py
+Build the worker image with:
+    ./build_worker.sh   (from repo root)
+ 
 Role system:
   network   - Network Analyst  (Firewall/DNS/Proxy perspective)
   endpoint  - Endpoint Analyst (EDR/Sysmon/WinEvent perspective)
   ir_lead   - IR Lead          (full picture, submits final decision)
   solo      - single-player, no role restrictions
-
+ 
 Voting flow (multi-player):
   Non-ir_lead players send suggest_choice -> broadcasts suggestion to all.
   ir_lead sends make_choice -> finalises the decision.
