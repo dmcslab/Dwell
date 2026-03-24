@@ -245,15 +245,17 @@ function SessionsTab() {
 // ── Reset Stats Button ────────────────────────────────────────────────────────
 
 function ResetStatsButton({ onDone }: { onDone: (msg: string) => void }) {
-  const [confirm,  setConfirm]  = useState(false)
+  const [step,      setStep]      = useState<'idle' | 'confirm' | 'typing'>('idle')
+  const [typed,     setTyped]     = useState('')
   const [resetting, setResetting] = useState(false)
-  const [error,    setError]    = useState('')
-
+  const [error,     setError]     = useState('')
+ 
   const doReset = async () => {
     setResetting(true)
     try {
       const res = await adminApi.resetAllStats()
-      setConfirm(false)
+      setStep('idle')
+      setTyped('')
       onDone(res.message)
     } catch (e: any) {
       setError(e.message)
@@ -261,29 +263,52 @@ function ResetStatsButton({ onDone }: { onDone: (msg: string) => void }) {
       setResetting(false)
     }
   }
-
-  if (!confirm) {
+ 
+  const cancel = () => { setStep('idle'); setTyped(''); setError('') }
+ 
+  // ── idle: just the button ─────────────────────────────────────────────────
+  if (step === 'idle') {
     return (
       <button
-        onClick={() => setConfirm(true)}
+        onClick={() => setStep('confirm')}
         className="px-4 py-2 bg-red-900 hover:bg-red-800 border border-red-700 text-red-300 text-sm font-semibold rounded-lg transition-colors shrink-0"
       >
         Reset All Stats
       </button>
     )
   }
-
+ 
+  // ── confirm: type RESET to unlock ─────────────────────────────────────────
   return (
-    <div className="flex flex-col gap-2 shrink-0">
-      <p className="text-red-400 text-xs font-semibold">Are you sure? This cannot be undone.</p>
-      {error && <p className="text-red-400 text-xs">{error}</p>}
+    <div className="flex flex-col gap-2 shrink-0 w-full max-w-sm">
+      <p className="text-red-400 text-xs font-semibold">
+        Type <span className="font-mono bg-red-950 px-1 rounded">RESET</span> to confirm.
+        This cannot be undone.
+      </p>
       <div className="flex gap-2">
-        <button onClick={() => setConfirm(false)} className="px-3 py-1.5 border border-gray-700 rounded text-gray-400 text-xs hover:text-white">Cancel</button>
-        <button onClick={doReset} disabled={resetting}
-          className="px-3 py-1.5 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-semibold rounded transition-colors">
-          {resetting ? 'Resetting…' : 'Yes, Reset Everything'}
+        <input
+          value={typed}
+          onChange={e => { setTyped(e.target.value); setError('') }}
+          onKeyDown={e => e.key === 'Enter' && typed === 'RESET' && doReset()}
+          placeholder="RESET"
+          className="flex-1 bg-gray-800 border border-red-800 rounded-lg px-3 py-1.5 text-white text-sm font-mono focus:outline-none focus:border-red-500"
+          autoFocus
+        />
+        <button
+          onClick={cancel}
+          className="px-3 py-1.5 border border-gray-700 rounded text-gray-400 text-xs hover:text-white"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={doReset}
+          disabled={typed !== 'RESET' || resetting}
+          className="px-3 py-1.5 bg-red-700 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded transition-colors"
+        >
+          {resetting ? 'Resetting…' : 'Confirm'}
         </button>
       </div>
+      {error && <p className="text-red-400 text-xs">{error}</p>}
     </div>
   )
 }

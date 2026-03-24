@@ -281,24 +281,37 @@ async def create_user(
 
 # ── Reset all stats ───────────────────────────────────────────────────────────
 
+class ResetStatsConfirm(BaseModel):
+    confirm: str = Field(
+        description='Must be the literal string "RESET" to proceed.',
+    )
+ 
+ 
 @router.post("/reset-stats")
 async def reset_all_stats(
+    body:  ResetStatsConfirm,
     db:    AsyncSession = Depends(get_db),
     admin: User         = Depends(require_admin),
 ) -> dict[str, str]:
     """
     Wipe all game session records from the DB and flush all active sessions
     from Redis. Scenarios and user accounts are NOT affected.
+ 
+    Requires { "confirm": "RESET" } in the request body to prevent accidental
+    calls from scripts, browser autofill, or misclicks in API tooling.
     """
+    if body.confirm != "RESET":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='confirm field must be the exact string "RESET".',
+        )
+ 
     redis = await get_redis()
-
+ 
     # Delete all game sessions from DB
     await db.execute(text("DELETE FROM game_sessions"))
-
-    # Flush Redis — using the exact key schema from redis_state.py:
-    #   game:session:{sid}  — live session state
-    #   game:lock:{sid}     — distributed lock keys
-    #   admin:active_sessions — hash index used by the admin dashboard
+ 
+    # Flush Redis session/lock keys and the active-sessions hash
     deleted = 0
     async for key in redis.scan_iter(match="game:session:*", count=200):
         await redis.delete(key)
@@ -306,9 +319,8 @@ async def reset_all_stats(
     async for key in redis.scan_iter(match="game:lock:*", count=200):
         await redis.delete(key)
         deleted += 1
-    # admin:active_sessions is a Redis hash — delete it directly, not by scan
     await redis.delete("admin:active_sessions")
-
+ 
     return {
         "message": f"All game sessions deleted. {deleted} Redis session/lock keys cleared.",
         "reset_by": admin.username,
