@@ -36,6 +36,14 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     siemSources: ['EDR', 'Sysmon', 'WinEvent', 'AV', 'SIEM'],
     color:       'violet',
   },
+  {
+    id:          'solo',
+    label:       'Solo Analyst',
+    icon:        '👤',
+    description: 'Single-player mode. Full picture, no role restrictions.',
+    siemSources: [],   // empty = show all sources
+    color:       'gray',
+  },
 ]
 
 // ── Scenario structure ────────────────────────────────────────────────────────

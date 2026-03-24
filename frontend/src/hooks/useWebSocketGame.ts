@@ -56,6 +56,7 @@ const nextId = () => ++_id
 export function useWebSocketGame(
   sessionId:  string,
   playerName: string,
+  token:      string,
 ): UseWebSocketGameReturn {
   const wsRef = useRef<WebSocket | null>(null)
 
@@ -83,7 +84,7 @@ export function useWebSocketGame(
 
   useEffect(() => {
     if (!sessionId) return
-    const url = `${getWsBase()}/api/v1/game/play/${sessionId}?name=${encodeURIComponent(playerName)}`
+    const url = `${getWsBase()}/api/v1/game/play/${sessionId}?name=${encodeURIComponent(playerName)}&token=${encodeURIComponent(token)}`
     const ws  = new WebSocket(url)
     wsRef.current = ws
     let intentionalClose = false  // flag to suppress onclose during cleanup

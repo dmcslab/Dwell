@@ -68,9 +68,14 @@ function FeedbackPanel({ isCorrect, consequence, technicalExplanation, actionTex
 }
 
 interface Props {
-  scenarioId: number; initialSessionId?: string; initialPlayerName?: string
-  initialShareLink?: string; initialRole?: PlayerRole; onBack: () => void
-  onDebrief: (summary: SessionSummary, scenario: ScenarioFull) => void
+  scenarioId:        number
+  initialSessionId?: string
+  initialPlayerName?: string
+  initialShareLink?: string
+  initialRole?:      PlayerRole
+  initialToken?:     string
+  onBack:            () => void
+  onDebrief:         (summary: SessionSummary, scenario: ScenarioFull) => void
 }
 
 export function ScenarioPlayer({
@@ -83,6 +88,7 @@ export function ScenarioPlayer({
   const [playerName,      setPlayerName]      = useState(initialPlayerName ?? 'Analyst')
   const [teamName,        setTeamName]        = useState('')
   const [shareLink,       setShareLink]       = useState(initialShareLink ?? '')
+  const [joinToken,       setJoinToken]       = useState(initialToken ?? '')
   const [startErr,        setStartErr]        = useState('')
   const [starting,        setStarting]        = useState(false)
   const [scenarioMeta,    setScenarioMeta]    = useState<ScenarioFull | null>(null)
@@ -96,7 +102,7 @@ export function ScenarioPlayer({
 
   useEffect(() => { gameApi.getScenario(scenarioId).then(setScenarioMeta).catch(() => {}) }, [scenarioId])
 
-  const ws = useWebSocketGame(sessionId, playerName)
+  const ws = useWebSocketGame(sessionId, playerName, joinToken)
 
   // Auto-assign role for players who picked it on the join page
   useEffect(() => {
@@ -121,7 +127,10 @@ export function ScenarioPlayer({
     setStarting(true); setStartErr('')
     try {
       const res = await gameApi.start(scenarioId, teamName, playerName)
-      setSessionId(res.session_id); setShareLink(res.share_link); setSetupDone(true)
+      setSessionId(res.session_id)
+      setShareLink(res.share_link)
+      setJoinToken(res.join_token)
+      setSetupDone(true)
     } catch (e: any) { setStartErr(e.message) }
     finally { setStarting(false) }
   }
