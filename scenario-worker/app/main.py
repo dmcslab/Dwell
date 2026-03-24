@@ -82,7 +82,7 @@ async def lifespan(app: FastAPI):
     log.info("worker stopped session=%s", settings.SESSION_ID)
 
 
-app = FastAPI(title=f"Cyber-Rans Worker [{settings.SESSION_ID[:8]}]", lifespan=lifespan)
+app = FastAPI(title=f"Dwell Worker [{settings.SESSION_ID[:8]}]", lifespan=lifespan)
 
 
 @app.get("/health")

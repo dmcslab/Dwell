@@ -6,7 +6,7 @@ All 15 scenarios are analyst simulations following NIST SP 800-61r2.
 NO company names, years, or ransom amounts referenced.
 Each scenario is grounded in real ransomware TTPs from CISA/MITRE research.
 
-Run: docker exec -it cyberrans_backend python scripts/seed_scenarios.py
+Run: docker exec -it dwell_backend python scripts/seed_scenarios.py
 """
 import asyncio, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

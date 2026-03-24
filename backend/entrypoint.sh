@@ -2,7 +2,7 @@
 set -e
 
 echo "[entrypoint] Waiting for PostgreSQL..."
-until pg_isready -h db -p 5432 -U cyber -d cyberrans -q; do
+until pg_isready -h db -p 5432 -U dwell -d dwell -q; do
   sleep 1
 done
 echo "[entrypoint] PostgreSQL ready."

@@ -1,23 +1,25 @@
+version: "3.9"
+
 networks:
-  cyberrans_net:
+  dwell_net:
     driver: bridge
 
 services:
 
   db:
     image: postgres:16-alpine
-    container_name: cyberrans_db
-    networks: [cyberrans_net]
+    container_name: dwell_db
+    networks: [dwell_net]
     environment:
-      POSTGRES_USER:     cyber
-      POSTGRES_PASSWORD: cyber
-      POSTGRES_DB:       cyberrans
+      POSTGRES_USER:     dwell
+      POSTGRES_PASSWORD: dwell
+      POSTGRES_DB:       dwell
     volumes:
       - pgdata:/var/lib/postgresql/data
     expose:
       - "5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cyber -d cyberrans"]
+      test: ["CMD-SHELL", "pg_isready -U dwell -d dwell"]
       interval: 3s
       timeout: 3s
       retries: 20
@@ -26,8 +28,8 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: cyberrans_redis
-    networks: [cyberrans_net]
+    container_name: dwell_redis
+    networks: [dwell_net]
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redisdata:/data
@@ -44,8 +46,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: cyberrans_backend
-    networks: [cyberrans_net]
+    container_name: dwell_backend
+    networks: [dwell_net]
     env_file:
       - ./backend/.env
     volumes:
@@ -63,17 +65,17 @@ services:
     build:
       context: ./orchestrator
       dockerfile: Dockerfile
-    container_name: cyberrans_orchestrator
-    networks: [cyberrans_net]
+    container_name: dwell_orchestrator
+    networks: [dwell_net]
     environment:
       REDIS_URL:           redis://redis:6379/0
-      WORKER_IMAGE:        cyberrans_scenario_worker:latest
-      DOCKER_NETWORK:      cyberrans_net
+      WORKER_IMAGE:        dwell_scenario_worker:latest
+      DOCKER_NETWORK:      dwell_net
       WORKER_PORT:         "8765"
       MAX_WORKERS:         "50"
       WORKER_IDLE_TIMEOUT: "3600"
       CLEANUP_INTERVAL:    "60"
-      WORKER_DATABASE_URL: postgresql+asyncpg://cyber:cyber@db:5432/cyberrans
+      WORKER_DATABASE_URL: postgresql+asyncpg://dwell:dwell@db:5432/dwell
       WORKER_REDIS_URL:    redis://redis:6379/0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -89,8 +91,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: cyberrans_frontend
-    networks: [cyberrans_net]
+    container_name: dwell_frontend
+    networks: [dwell_net]
     volumes:
       - ./frontend:/app
       - /app/node_modules

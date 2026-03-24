@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/dmcslab-banner.png" alt="dMCSlab" width="700"/>
+  <img src="docs/dwell-banner.png" alt="Dwell — Incident Response Training" width="820"/>
 </p>
 
-<h1 align="center">Cyber-Rans — Cybersecurity IR Training Platform</h1>
+<h1 align="center">Dwell — Incident Response Training Platform</h1>
 
 <p align="center">
   Step through realistic ransomware incidents as an analyst. Make decisions. See the consequences.
@@ -14,9 +14,10 @@
   <img src="https://img.shields.io/badge/docker-required-blue?logo=docker" alt="Docker"/>
   <img src="https://img.shields.io/badge/setup-one_command-brightgreen" alt="One command"/>
   <img src="https://img.shields.io/badge/scenarios-15-orange" alt="15 Scenarios"/>
+  <img src="https://img.shields.io/badge/license-GPLv3-blue" alt="GPL v3.0"/>
 </p>
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+> **The name.** Dwell time is the number of days an attacker spends inside a network before detection. The average is measured in weeks. Every second of this simulation, that clock is ticking.
 
 ---
 
@@ -27,16 +28,16 @@
 ### macOS / Linux
 
 ```bash
-git clone https://github.com/dmcslab/cyber-rans.git
-cd cyber-rans
+git clone https://github.com/dmcslab/Dwell.git
+cd dwell
 ./start.sh
 ```
 
 ### Windows
 
 ```
-git clone https://github.com/dmcslab/cyber-rans.git
-cd cyber-rans
+git clone https://github.com/dmcslab/Dwell.git
+cd dwell
 start.bat
 ```
 
@@ -47,18 +48,15 @@ Then open **http://localhost:5173** in your browser.
 **Default admin credentials:**
 ```
 Username: admin
-Password: CyberRans!Change123
+Password: Dwell!Change123
 ```
 Change the password via the Admin panel after first login.
 
 ---
-## Screenshot
-<img width="1210" height="1209" alt="image" src="https://github.com/user-attachments/assets/03d67c7b-8126-4321-93f3-087149623216" />
 
----
 ## What Is This?
 
-Cyber-Rans puts you in the middle of an active ransomware incident. You're an analyst — not reading a case study, but making real-time decisions:
+Dwell puts you in the middle of an active ransomware incident. You are an analyst — not reading a case study, but making real-time decisions:
 
 - Do you contain first or collect forensic evidence?
 - Do you restore from backup or check for persistence first?
@@ -128,10 +126,10 @@ start.bat          # Windows
 To make the app accessible to remote participants without opening firewall ports:
 
 1. Install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
-2. Create a tunnel: `cloudflared tunnel create cyber-rans`
+2. Create a tunnel: `cloudflared tunnel create dwell`
 3. Point it at `http://localhost:5173`
 4. Start the app: `./start.sh`
-5. Start the tunnel: `cloudflared tunnel run cyber-rans`
+5. Start the tunnel: `cloudflared tunnel run dwell`
 
 **No code changes required.** The app auto-detects the public URL from request headers and generates correct share links automatically.
 
@@ -210,17 +208,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-FinanceNavigator core is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+Dwell is free software: you can redistribute it and/or modify it under the terms of the
+**GNU General Public License v3.0** as published by the Free Software Foundation.
 
-- ✅ Use, study, modify, and distribute freely
-- ✅ Run privately for personal use
-- ⚠️ If you modify and **offer it as a network service**, you must release your modifications
-  under the same license
+See [LICENSE](LICENSE) for the full text.
 
-See [LICENSE](./LICENSE) for the full legal text.
+This program is distributed in the hope that it will be useful, but **without any warranty** —
+without even the implied warranty of merchantability or fitness for a particular purpose.
 
 ---
 
 <p align="center">
-  Built by <strong>dMCSlab</strong>
+  Built by <strong><a href="https://github.com/dmcslab">dMCSlab</a></strong>
 </p>

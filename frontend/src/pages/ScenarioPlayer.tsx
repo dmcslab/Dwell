@@ -11,7 +11,7 @@ import { VotingPanel }          from '../components/VotingPanel'
 import { RoleSelectPage }       from './RoleSelectPage'
 import { SpectatorView }        from './SpectatorView'
 import { useWebSocketGame }     from '../hooks/useWebSocketGame'
-import { DmcslabLogo } from '../components/DmcslabLogo'
+import { DwellLogo } from '../components/DwellLogo'
 import { ROLE_DEFINITIONS }     from '../types/scenario'
 import type { GameState, PlayerRole, ScenarioFull, SessionSummary } from '../types/scenario'
 

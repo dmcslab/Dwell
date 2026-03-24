@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Dark background -->
+  <rect width="48" height="48" rx="6" fill="#111827"/>
+  <!-- ECG baseline -->
+  <line x1="2" y1="24" x2="46" y2="24" stroke="#2e3f60" stroke-width="0.8"/>
+  <!-- ECG waveform: flat → P → QRS spike → T → flatline -->
+  <!-- Flat lead-in -->
+  <polyline points="2,24 10,24" stroke="#20c9bc" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- P wave -->
+  <path d="M10,24 Q12,20 14,24" fill="none" stroke="#20c9bc" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- PR segment -->
+  <line x1="14" y1="24" x2="17" y2="24" stroke="#20c9bc" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- Q dip -->
+  <line x1="17" y1="24" x2="19" y2="28" stroke="#f87171" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- R spike UP — the incident -->
+  <line x1="19" y1="28" x2="22" y2="4"  stroke="#f87171" stroke-width="2.6" stroke-linecap="round"/>
+  <!-- R → S drop -->
+  <line x1="22" y1="4"  x2="25" y2="32" stroke="#f87171" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- S → baseline -->
+  <line x1="25" y1="32" x2="27" y2="24" stroke="#f87171" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- T wave recovery -->
+  <path d="M27,24 Q31,17 35,24" fill="none" stroke="#20c9bc" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- Flatline — dwell time -->
+  <polyline points="35,24 46,24" stroke="#20c9bc" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- Dwell bracket over flatline -->
+  <polyline points="35,14 35,16 46,16 46,14" fill="none" stroke="#20c9bc" stroke-width="1.2" stroke-linecap="round"/>
+</svg>

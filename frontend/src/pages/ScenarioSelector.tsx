@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { DmcslabLogo } from '../components/DmcslabLogo'
+import { DwellLogo } from '../components/DwellLogo'
 import { gameApi }      from '../api/game'
 import { scenariosApi } from '../api/scenarios'
 import type { ScenarioSummary } from '../types/scenario'
@@ -49,7 +49,7 @@ export function ScenarioSelector({ onSelectWithSession }: Props) {
       <header className="relative border-b border-gray-800 bg-gray-950/80 backdrop-blur-sm sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <DmcslabLogo size="md" />
+            <DwellLogo size="md" />
           </div>
 
           {/* Analyst name input */}

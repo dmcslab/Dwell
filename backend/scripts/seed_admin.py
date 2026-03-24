@@ -6,10 +6,10 @@ Creates the default admin account if it does not already exist.
 
 Default credentials  (CHANGE AFTER FIRST LOGIN):
   username: admin
-  password: CyberRans!Change123
+  password: Dwell!Change123
 
 Run after migrations:
-    docker exec -it cyberrans_backend python scripts/seed_admin.py
+    docker exec -it dwell_backend python scripts/seed_admin.py
 """
 import asyncio, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,8 +21,8 @@ from app.config import settings
 from app.models.models import Base, User
 
 DEFAULT_USERNAME = "admin"
-DEFAULT_EMAIL    = "admin@cyberrans.local"
-DEFAULT_PASSWORD = "CyberRans!Change123"
+DEFAULT_EMAIL    = "admin@dwell.local"
+DEFAULT_PASSWORD = "Dwell!Change123"
 
 _pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -59,7 +59,7 @@ async def seed_admin() -> None:
 
   ┌─────────────────────────────────────────┐
   │  Username : admin                       │
-  │  Password : CyberRans!Change123         │
+  │  Password : Dwell!Change123         │
   │                                         │
   │  ⚠  CHANGE THIS PASSWORD AFTER LOGIN   │
   └─────────────────────────────────────────┘

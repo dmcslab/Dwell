@@ -1,3 +1,4 @@
+import { DwellLogo }   from '../components/DwellLogo'
 import { DmcslabLogo } from '../components/DmcslabLogo'
 /**
  * AdminDashboard.tsx
@@ -9,7 +10,7 @@ import { DmcslabLogo } from '../components/DmcslabLogo'
  *   Scenarios — full CRUD (re-uses logic from AdminScenarios)
  *
  * Requires is_admin = true on the backend.
- * Default credentials: admin / CyberRans!Change123 (seed_admin.py)
+ * Default credentials: admin / Dwell!Change123 (seed_admin.py)
  */
 import { useCallback, useEffect, useState } from 'react'
 import { ScenarioBuilder } from './ScenarioBuilder'
@@ -99,7 +100,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
           <span className="text-2xl">⚙</span>
           <div>
             <h2 className="text-white font-bold text-xl">Admin Login</h2>
-            <p className="text-gray-500 text-xs">Default: admin / CyberRans!Change123</p>
+            <p className="text-gray-500 text-xs">Default: admin / Dwell!Change123</p>
           </div>
         </div>
         <div className="flex flex-col gap-3">
@@ -839,7 +840,7 @@ function ScenariosTab() {
         <div className="text-center mt-12">
           <p className="text-gray-600 mb-2">No scenarios yet.</p>
           <code className="text-xs text-cyan-700 font-mono block">
-            docker exec -it cyberrans_backend python scripts/seed_scenarios.py
+            docker exec -it dwell_backend python scripts/seed_scenarios.py
           </code>
         </div>
       )}

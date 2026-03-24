@@ -238,7 +238,7 @@ export function AdminScenarios({ onBack }: Props) {
             <p className="text-gray-600 text-lg mb-2">No scenarios yet</p>
             <p className="text-gray-600 text-sm">Run the seed script or create one manually.</p>
             <code className="mt-3 block text-xs text-cyan-700 font-mono">
-              docker exec -it cyberrans_backend python scripts/seed_scenarios.py
+              docker exec -it dwell_backend python scripts/seed_scenarios.py
             </code>
           </div>
         )}

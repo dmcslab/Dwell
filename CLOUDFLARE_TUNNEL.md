@@ -1,6 +1,6 @@
 # Cloudflare Tunnel Deployment
 
-Cyber-Rans works behind a Cloudflare Tunnel with **zero code changes**.
+Dwell works behind a Cloudflare Tunnel with **zero code changes**.
 Share links, WebSocket connections, and API calls all auto-detect the
 public URL from the request at runtime.
 
@@ -27,8 +27,8 @@ Or download from https://developers.cloudflare.com/cloudflare-one/connections/co
 
 ```bash
 cloudflared tunnel login
-cloudflared tunnel create cyber-rans
-cloudflared tunnel route dns cyber-rans yourdomain.com
+cloudflared tunnel create dwell
+cloudflared tunnel route dns dwell yourdomain.com
 ```
 
 ### 3. Create `~/.cloudflared/config.yml`
@@ -48,8 +48,8 @@ ingress:
 ### 4. Start the app and tunnel
 
 ```bash
-./start.sh                       # starts Cyber-Rans
-cloudflared tunnel run cyber-rans # starts the tunnel
+./start.sh                       # starts Dwell
+cloudflared tunnel run dwell # starts the tunnel
 ```
 
 That's it. Open `https://yourdomain.com` — no other changes needed.
@@ -83,7 +83,7 @@ sudo systemctl enable cloudflared
 **WebSocket fails:**
 ```bash
 # Verify backend is reachable from frontend container
-docker exec cyberrans_frontend wget -q -O- http://backend:8000/health
+docker exec dwell_frontend wget -q -O- http://backend:8000/health
 ```
 
 **CORS errors in browser console:**

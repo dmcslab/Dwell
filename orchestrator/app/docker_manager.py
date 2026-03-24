@@ -17,7 +17,7 @@ def _client() -> docker.DockerClient:
 
 
 def container_name(session_id: str) -> str:
-    return f"cyberrans_worker_{session_id[:12]}"
+    return f"dwell_worker_{session_id[:12]}"
 
 
 def worker_ws_url(session_id: str) -> str:
@@ -48,7 +48,7 @@ def _run_container(session_id: str, scenario_id: int) -> Container:
         },
         nano_cpus=settings.WORKER_NANO_CPUS,
         mem_limit=settings.WORKER_MEM_LIMIT,
-        labels={"cyberrans.role": "worker", "cyberrans.session_id": session_id},
+        labels={"dwell.role": "worker", "dwell.session_id": session_id},
     )
 
 
@@ -87,9 +87,9 @@ async def list_worker_containers() -> list[dict]:
 
 def _list_workers() -> list[dict]:
     try:
-        containers = _client().containers.list(filters={"label": "cyberrans.role=worker"})
+        containers = _client().containers.list(filters={"label": "dwell.role=worker"})
         return [{"container_id": c.id[:12], "name": c.name, "status": c.status,
-                 "session_id": c.labels.get("cyberrans.session_id", "unknown")} for c in containers]
+                 "session_id": c.labels.get("dwell.session_id", "unknown")} for c in containers]
     except Exception as exc:
         log.error("list_workers error: %s", exc)
         return []

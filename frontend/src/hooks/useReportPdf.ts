@@ -25,7 +25,7 @@ export function useReportPdf() {
     doc.setTextColor(34, 211, 238)        // cyan-400
     doc.setFontSize(16)
     doc.setFont('helvetica', 'bold')
-    doc.text('CYBER-RANS', margin, 12)
+    doc.text('DWELL', margin, 12)
     doc.setTextColor(148, 163, 184)       // gray-400
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
@@ -138,12 +138,12 @@ export function useReportPdf() {
       doc.setFontSize(7)
       doc.setTextColor(148, 163, 184)
       doc.setFont('helvetica', 'normal')
-      doc.text('Cyber-Rans IR Training Platform — Confidential Training Report', margin, doc.internal.pageSize.getHeight() - 8)
+      doc.text('Dwell — Incident Response Training — Confidential Report', margin, doc.internal.pageSize.getHeight() - 8)
       doc.text(`Page ${p} of ${totalPages}`, pageW - margin, doc.internal.pageSize.getHeight() - 8, { align: 'right' })
     }
 
     const safeName = scenario.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()
-    doc.save(`cyberrans_debrief_${safeName}_${Date.now()}.pdf`)
+    doc.save(`dwell_debrief_${safeName}_${Date.now()}.pdf`)
   }, [])
 
   return { exportPdf }

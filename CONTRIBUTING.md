@@ -1,6 +1,6 @@
-# Contributing to Cyber-Rans
+# Contributing to Dwell
 
-Thank you for your interest in contributing. Cyber-Rans is free software licensed under the **GNU General Public License v3.0**. All contributions must be compatible with this license.
+Thank you for your interest in contributing. Dwell is free software licensed under the **GNU General Public License v3.0**. All contributions must be compatible with this license.
 
 ---
 
@@ -169,8 +169,8 @@ Before opening a PR for a new scenario, verify:
 ### Local setup
 
 ```bash
-git clone https://github.com/yourorg/cyber-rans.git
-cd cyber-rans
+git clone https://github.com/yourorg/dwell.git
+cd dwell
 
 # Start dependencies only
 docker compose up db redis -d
@@ -193,8 +193,8 @@ npm run dev
 
 ```bash
 docker compose up --build
-docker exec -it cyberrans_backend alembic upgrade head
-docker exec -it cyberrans_backend python scripts/seed_scenarios.py
+docker exec -it dwell_backend alembic upgrade head
+docker exec -it dwell_backend python scripts/seed_scenarios.py
 ```
 
 ---
@@ -208,7 +208,7 @@ docker exec -it cyberrans_backend python scripts/seed_scenarios.py
 5. Ensure all existing tests pass.
 6. Run the scenario compliance check if you modified `seed_scenarios.py`:
    ```bash
-   docker exec -it cyberrans_backend python scripts/seed_scenarios.py
+   docker exec -it dwell_backend python scripts/seed_scenarios.py
    ```
 7. Open a pull request against `main` with a clear description of what changed and why.
 
@@ -337,4 +337,4 @@ Open a GitHub Discussion or an issue tagged `question`.
 
 ---
 
-*Cyber-Rans is free software. Contributions you make will be freely available to the security community under the same terms. Thank you for helping make IR training more accessible.*
+*Dwell is free software. Contributions you make will be freely available to the security community under the same terms. Thank you for helping make IR training more accessible.*

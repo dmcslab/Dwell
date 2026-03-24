@@ -1,10 +1,10 @@
 @echo off
-title Cyber-Rans IR Training Platform
+title Dwell IR Training Platform
 color 0B
 
 echo.
 echo  =====================================================
-echo     Cyber-Rans IR Training Platform  by dMCSlab
+echo     Dwell IR Training Platform  by dMCSlab
 echo  =====================================================
 echo.
 
@@ -61,7 +61,7 @@ echo    ^>^>  http://localhost:5173
 echo.
 echo    Default admin login:
 echo    User:  admin
-echo    Pass:  CyberRans!Change123
+echo    Pass:  Dwell!Change123
 echo.
 echo    To stop: run stop.bat
 echo  =====================================================

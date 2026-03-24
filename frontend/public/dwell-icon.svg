@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <rect width="48" height="48" rx="10" fill="#111827"/>
+  <!-- ECG baseline -->
+  <line x1="3" y1="28" x2="45" y2="28" stroke="#2d3f60" stroke-width="1"/>
+  <!-- Waveform: flat → P → flat → Q-R-S spike → T → flatline -->
+  <polyline
+    points="3,28  9,28  10,27  11,28  13,28  14,30  15,28
+            17,4   19,32  21,26  23,28  31,28  32,28"
+    stroke="#20c9bc" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Spike coloured red -->
+  <polyline
+    points="13,28  14,30  15,28  17,4  19,32  21,26  23,28"
+    stroke="#f87171" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Post-spike flatline -->
+  <line x1="23" y1="28" x2="45" y2="28" stroke="#20c9bc" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- Dwell bracket -->
+  <line x1="30" y1="18" x2="45" y2="18" stroke="#20c9bc" stroke-width="1.2"/>
+  <line x1="30" y1="18" x2="30" y2="22" stroke="#20c9bc" stroke-width="1.2"/>
+  <line x1="45" y1="18" x2="45" y2="22" stroke="#20c9bc" stroke-width="1.2"/>
+</svg>

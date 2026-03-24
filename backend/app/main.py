@@ -17,7 +17,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Cyber-Rans",
+    title="Dwell",
     description="Cybersecurity IR Training Platform — scenario-based analyst simulations",
     version="1.0.0",
     lifespan=lifespan,

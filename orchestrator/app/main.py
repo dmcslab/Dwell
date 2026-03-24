@@ -98,7 +98,7 @@ async def lifespan(app: FastAPI):
         await _redis.aclose(); _redis = None
 
 
-app = FastAPI(title="Cyber-Rans Orchestrator", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Dwell Orchestrator", version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 

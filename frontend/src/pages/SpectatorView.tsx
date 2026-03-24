@@ -12,7 +12,7 @@
  * Spectators send no game-affecting messages after joining.
  */
 import { useEffect, useRef, useState } from 'react'
-import { DmcslabLogo } from '../components/DmcslabLogo'
+import { DwellLogo } from '../components/DwellLogo'
 import { getWsBase }          from '../api/client'
 import { IrPhaseBadge }     from '../components/IrPhaseBadge'
 import { IncidentTimeline } from '../components/IncidentTimeline'
@@ -330,7 +330,7 @@ export function SpectatorView({ sessionId, playerName, onLeave }: Props) {
           👁 SPECTATOR
         </span>
         <div className="h-4 w-px bg-gray-700" />
-        <DmcslabLogo size="sm" />
+        <DwellLogo size="sm" />
         <div className="h-4 w-px bg-gray-700/60" />
         <span className="text-white text-sm font-display font-semibold truncate tracking-wide">
           {scenario?.name ?? 'Connecting…'}

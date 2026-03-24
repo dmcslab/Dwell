@@ -10,8 +10,8 @@ def _auto_secret() -> str:
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str      = "postgresql+asyncpg://cyber:cyber@db:5432/cyberrans"
-    SYNC_DATABASE_URL: str = "postgresql+psycopg2://cyber:cyber@db:5432/cyberrans"
+    DATABASE_URL: str      = "postgresql+asyncpg://dwell:dwell@db:5432/dwell"
+    SYNC_DATABASE_URL: str = "postgresql+psycopg2://dwell:dwell@db:5432/dwell"
     REDIS_URL: str         = "redis://redis:6379/0"
     SECRET_KEY: str        = _SENTINEL
     ALGORITHM: str         = "HS256"

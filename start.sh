@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────
-# Cyber-Rans — one-command launcher
+# Dwell — one-command launcher
 # Usage: ./start.sh
 # ─────────────────────────────────────────────────────────────────
 set -e
@@ -13,7 +13,7 @@ error()   { echo -e "${RED}✗  $*${NC}"; exit 1; }
 
 echo ""
 echo -e "${CYAN}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║     Cyber-Rans IR Training Platform          ║${NC}"
+echo -e "${CYAN}║     Dwell IR Training Platform          ║${NC}"
 echo -e "${CYAN}║     by dMCSlab                               ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════╝${NC}"
 echo ""
@@ -68,7 +68,7 @@ done
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║   🟢  Cyber-Rans is running!                 ║${NC}"
+echo -e "${GREEN}║   🟢  Dwell is running!                 ║${NC}"
 echo -e "${GREEN}╠══════════════════════════════════════════════╣${NC}"
 echo -e "${GREEN}║                                              ║${NC}"
 echo -e "${GREEN}║   Open in browser:                           ║${NC}"
@@ -76,7 +76,7 @@ echo -e "${GREEN}║   👉  http://localhost:5173                  ║${NC}"
 echo -e "${GREEN}║                                              ║${NC}"
 echo -e "${GREEN}║   Default admin login:                       ║${NC}"
 echo -e "${GREEN}║   User:  admin                               ║${NC}"
-echo -e "${GREEN}║   Pass:  CyberRans!Change123                 ║${NC}"
+echo -e "${GREEN}║   Pass:  Dwell!Change123                 ║${NC}"
 echo -e "${GREEN}║                                              ║${NC}"
 echo -e "${GREEN}║   To stop:  ./stop.sh  (or Ctrl+C)          ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════╝${NC}"
