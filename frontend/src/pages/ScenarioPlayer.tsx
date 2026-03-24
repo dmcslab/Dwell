@@ -73,17 +73,11 @@ interface Props {
   onDebrief: (summary: SessionSummary, scenario: ScenarioFull) => void
 }
 
-<<<<<<< Updated upstream
-export function ScenarioPlayer({ scenarioId, initialSessionId, initialPlayerName, initialShareLink, initialRole, onBack, onDebrief }: Props) {
-=======
 export function ScenarioPlayer({
   scenarioId, initialSessionId, initialPlayerName,
   initialShareLink, initialRole, initialToken,
   onBack, onDebrief,
 }: Props) {
-  const mountedRef = useRef(true)
-  useEffect(() => () => { mountedRef.current = false }, [])
->>>>>>> Stashed changes
   const [setupDone,       setSetupDone]       = useState(!!initialSessionId)
   const [sessionId,       setSessionId]       = useState(initialSessionId ?? '')
   const [playerName,      setPlayerName]      = useState(initialPlayerName ?? 'Analyst')
