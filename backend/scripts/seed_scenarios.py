@@ -15,6 +15,11 @@ from sqlalchemy import select
 from app.config import settings
 from app.models.models import Base, Scenario
 
+import os
+if os.getenv("SKIP_SEED_UPDATE", "").lower() in ("1", "true", "yes"):
+    print("SKIP_SEED_UPDATE set — skipping scenario seed.")
+    raise SystemExit(0)
+
 SCENARIOS = []
 
 # 1 — CryptoLocker-class

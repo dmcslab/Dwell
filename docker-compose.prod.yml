@@ -1,0 +1,29 @@
+# docker-compose.prod.yml — Production overlay
+# Removes dev bind-mounts and enables Redis authentication.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Before deploying:
+#   1. Set SECRET_KEY in backend/.env  (see .env.example)
+#   2. Set REDIS_PASSWORD in backend/.env and match it below
+
+services:
+  backend:
+    volumes: []                         # remove dev code bind-mount
+    environment:
+      - DEBUG=false
+
+  frontend:
+    volumes: []                         # remove dev code bind-mount
+
+  redis:
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-changeme_set_REDIS_PASSWORD_in_env}
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:

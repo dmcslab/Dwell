@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { SESSION_EXPIRED_EVENT, auth } from './api/client'
 import { ScenarioSelector } from './pages/ScenarioSelector'
 import { ScenarioPlayer }   from './pages/ScenarioPlayer'
 import { JoinPage }         from './pages/JoinPage'
@@ -55,6 +56,14 @@ function ThemeToggle() {
 }
 
 export default function App() {
+  const [sessionExpired, setSessionExpired] = useState(false)
+
+  useEffect(() => {
+    const handler = () => { auth.clearTokens(); setSessionExpired(true) }
+    window.addEventListener(SESSION_EXPIRED_EVENT, handler)
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handler)
+  }, [])
+
   const [route, setRoute] = useState<Route>(() => {
     const hash = window.location.hash
     const joinMatch = hash.match(/^#\/join\/([^/]+)$/)
@@ -78,9 +87,24 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-950 font-ui">
+      {sessionExpired && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-red-700 rounded-xl p-8 max-w-sm w-full mx-4 text-center shadow-2xl">
+            <h2 className="text-red-400 text-lg font-bold font-mono mb-3 tracking-wider">SESSION EXPIRED</h2>
+            <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+              Your session has timed out. Please log in again to continue.
+            </p>
+            <button
+              onClick={() => { setSessionExpired(false); setRoute({ name: 'selector' }) }}
+              className="w-full bg-red-700 hover:bg-red-600 text-white font-semibold px-6 py-2.5 rounded-lg transition"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
       {route.name === 'selector' && (
         <ScenarioSelector
-          onSelect={() => {}}
           onSelectWithSession={(scenarioId, sessionId, playerName, shareLink) =>
             go({ name: 'player', scenarioId, sessionId, playerName, shareLink })
           }

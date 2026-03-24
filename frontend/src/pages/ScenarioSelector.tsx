@@ -11,7 +11,7 @@ const DIFF_META: Record<string, { label: string; stripe: string; badge: string; 
 }
 
 interface Props {
-  onSelect: (id: number) => void
+  // onSelect removed — F-02 fix: prop was declared but never used internally
   onSelectWithSession: (scenarioId: number, sessionId: string, playerName: string, shareLink: string) => void
 }
 
