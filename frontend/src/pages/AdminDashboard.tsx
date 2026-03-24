@@ -1,5 +1,5 @@
 import { DwellLogo }   from '../components/DwellLogo'
-import { DmcslabLogo } from '../components/DmcslabLogo'
+
 /**
  * AdminDashboard.tsx
  * ------------------
