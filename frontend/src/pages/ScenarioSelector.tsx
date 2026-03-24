@@ -12,7 +12,13 @@ const DIFF_META: Record<string, { label: string; stripe: string; badge: string; 
 
 interface Props {
   onSelect: (id: number) => void
-  onSelectWithSession: (scenarioId: number, sessionId: string, playerName: string, shareLink: string) => void
+  onSelectWithSession: (
+    scenarioId:  number,
+    sessionId:   string,
+    playerName:  string,
+    shareLink:   string,
+    joinToken:   string,
+  ) => void
 }
 
 export function ScenarioSelector({ onSelectWithSession }: Props) {
@@ -34,7 +40,7 @@ export function ScenarioSelector({ onSelectWithSession }: Props) {
     setLaunching(id)
     try {
       const res = await gameApi.start(id, '', playerName || 'Analyst')
-      onSelectWithSession(id, res.session_id, playerName || 'Analyst', res.share_link)
+      onSelectWithSession(id, res.session_id, playerName || 'Analyst', res.share_link, res.join_token)
     } catch (e: any) {
       setError(e.message)
       setLaunching(null)
