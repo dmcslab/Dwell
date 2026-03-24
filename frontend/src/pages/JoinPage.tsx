@@ -36,9 +36,16 @@ const ROLE_RING: Record<PlayerRole, string> = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface Props {
-  sessionId: string
-  onJoined:  (scenarioId: number, sessionId: string, playerName: string, role: PlayerRole) => void
-  onBack:    () => void
+  sessionId:  string
+  joinToken:  string    // HMAC token from the share link — forwarded to the WS connection
+  onJoined:   (
+    scenarioId:  number,
+    sessionId:   string,
+    playerName:  string,
+    role:        PlayerRole,
+    joinToken:   string,
+  ) => void
+  onBack:     () => void
 }
 
 interface SessionInfo {
@@ -50,7 +57,7 @@ interface SessionInfo {
   role_names:   Record<string, string>
 }
 
-export function JoinPage({ sessionId, onJoined, onBack }: Props) {
+export function JoinPage({ sessionId, joinToken, onJoined, onBack }: Props) {
   const [info,       setInfo]       = useState<SessionInfo | null>(null)
   const [loading,    setLoading]    = useState(true)
   const [joining,    setJoining]    = useState(false)
@@ -80,7 +87,7 @@ export function JoinPage({ sessionId, onJoined, onBack }: Props) {
     setJoining(true)
     try {
       await gameApi.join(sessionId, playerName.trim())
-      onJoined(info.scenario_id, sessionId, playerName.trim(), pickedRole)
+      onJoined(info.scenario_id, sessionId, playerName.trim(), pickedRole, joinToken)
     } catch (e: any) {
       setError(e.message)
       setJoining(false)
@@ -233,7 +240,7 @@ export function JoinPage({ sessionId, onJoined, onBack }: Props) {
             {/* Spectator option */}
             <div className="flex items-center justify-center">
               <button
-                onClick={() => onJoined(info.scenario_id, sessionId, playerName.trim() || 'Spectator', 'solo')}
+                  onClick={() => onJoined(info.scenario_id, sessionId, playerName.trim() || 'Spectator', 'solo', joinToken)}
                 className="text-sm text-gray-500 hover:text-gray-300 underline underline-offset-2 transition-colors"
               >
                 👁 Watch session without participating
