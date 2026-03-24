@@ -295,22 +295,21 @@ async def reset_all_stats(
     # Delete all game sessions from DB
     await db.execute(text("DELETE FROM game_sessions"))
 
-    # Flush active-session keys from Redis (scan for our prefix)
-    cursor = 0
+    # Flush Redis — using the exact key schema from redis_state.py:
+    #   game:session:{sid}  — live session state
+    #   game:lock:{sid}     — distributed lock keys
+    #   admin:active_sessions — hash index used by the admin dashboard
     deleted = 0
-    while True:
-        cursor, keys = await redis.scan(cursor, match="session:*", count=200)
-        if keys:
-            await redis.delete(*keys)
-            deleted += len(keys)
-        # Also clear the active-sessions index set
-        cursor2, idx_keys = await redis.scan(0, match="active_sessions*", count=50)
-        if idx_keys:
-            await redis.delete(*idx_keys)
-        if cursor == 0:
-            break
+    async for key in redis.scan_iter(match="game:session:*", count=200):
+        await redis.delete(key)
+        deleted += 1
+    async for key in redis.scan_iter(match="game:lock:*", count=200):
+        await redis.delete(key)
+        deleted += 1
+    # admin:active_sessions is a Redis hash — delete it directly, not by scan
+    await redis.delete("admin:active_sessions")
 
     return {
-        "message": f"All game sessions deleted. {deleted} Redis keys cleared.",
+        "message": f"All game sessions deleted. {deleted} Redis session/lock keys cleared.",
         "reset_by": admin.username,
     }

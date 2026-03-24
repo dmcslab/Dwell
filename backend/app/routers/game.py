@@ -213,6 +213,9 @@ async def websocket_game(ws: WebSocket, session_id: str, name: str = Query(defau
                     continue
                 try:
                     cur = await get_state(redis, session_id)
+                    if is_spectator(cur, client_id):
+                        await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Spectators cannot assign roles"})
+                        continue
                     new_state = assign_role(cur, client_id, role, name)
                     await set_state(redis, session_id, new_state)
                     await ws_manager.broadcast_all(session_id, {
@@ -233,6 +236,9 @@ async def websocket_game(ws: WebSocket, session_id: str, name: str = Query(defau
                     continue
                 try:
                     cur = await get_state(redis, session_id)
+                    if is_spectator(cur, client_id):
+                        await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Spectators cannot begin the simulation"})
+                        continue
                     new_state = begin_simulation(cur)
                     await set_state(redis, session_id, new_state)
                     await ws_manager.broadcast_all(session_id, {"type": "state_sync", "state": new_state})
@@ -251,6 +257,9 @@ async def websocket_game(ws: WebSocket, session_id: str, name: str = Query(defau
                     continue
                 try:
                     cur = await get_state(redis, session_id)
+                    if is_spectator(cur, client_id):
+                        await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Spectators cannot suggest choices"})
+                        continue
                     new_state, suggestion_event = suggest_choice(cur, decision_tree, client_id, stage_id, option_index, name)
                     await set_state(redis, session_id, new_state)
                     await ws_manager.broadcast_all(session_id, suggestion_event)
@@ -269,6 +278,9 @@ async def websocket_game(ws: WebSocket, session_id: str, name: str = Query(defau
                     continue
                 try:
                     cur = await get_state(redis, session_id)
+                    if is_spectator(cur, client_id):
+                        await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Spectators cannot submit decisions"})
+                        continue
                     if not can_submit(cur, client_id):
                         await ws_manager.send_personal(session_id, client_id,
                             {"type": "error", "message": "Only the IR Lead can submit the final decision"})
@@ -297,6 +309,9 @@ async def websocket_game(ws: WebSocket, session_id: str, name: str = Query(defau
                     continue
                 try:
                     cur = await get_state(redis, session_id)
+                    if is_spectator(cur, client_id):
+                        await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Spectators cannot use hints"})
+                        continue
                     new_state, hint_event = use_hint(cur, client_id, scenario.scenario_structure or {})
                     await set_state(redis, session_id, new_state)
                     await ws_manager.send_personal(session_id, client_id, hint_event)
@@ -345,12 +360,23 @@ async def websocket_game(ws: WebSocket, session_id: str, name: str = Query(defau
                     await release_lock(redis, session_id)
 
             # ── save_exit ─────────────────────────────────────────────────────
+            # H1 fix: wrapped in the distributed lock so a concurrent make_choice
+            # cannot overwrite state that save_exit is simultaneously stamping.
             elif msg_type == "save_exit":
-                cur = await get_state(redis, session_id)
-                if cur:
-                    cur["saved_at"] = datetime.now(timezone.utc).isoformat()
-                    await set_state(redis, session_id, cur)
-                await ws_manager.send_personal(session_id, client_id, {"type": "session_saved"})
+                locked = await acquire_lock(redis, session_id)
+                if not locked:
+                    await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Action in progress"})
+                    continue
+                try:
+                    cur = await get_state(redis, session_id)
+                    if cur:
+                        cur["saved_at"] = datetime.now(timezone.utc).isoformat()
+                        await set_state(redis, session_id, cur)
+                    await ws_manager.send_personal(session_id, client_id, {"type": "session_saved"})
+                except Exception as exc:
+                    await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": str(exc)})
+                finally:
+                    await release_lock(redis, session_id)
 
     except (WebSocketDisconnect, RuntimeError):
         pass
