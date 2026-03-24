@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/dwell-banner.png" alt="Dwell — Incident Response Training" width="950"/>
+  <img src="docs/dwell-github-banner.png" alt="Dwell — Incident Response Training" width="900"/>
 </p>
 
 <h1 align="center">Dwell — Incident Response Training Platform</h1>
