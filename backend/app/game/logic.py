@@ -229,12 +229,18 @@ def session_summary(state: dict[str, Any]) -> dict[str, Any]:
     history = state.get('decision_history', [])
     correct = sum(1 for d in history if d.get('is_correct'))
     return {
-        'session_id': state['session_id'], 'scenario_id': state['scenario_id'],
-        'outcome': state.get('outcome'), 'phases_completed': list(state.get('completed_stage_ids', [])),
-        'correct_choices': correct, 'wrong_choices': len(history) - correct,
-        'attempts_used': state['max_attempts'] - state['attempts_remaining'],
-        'started_at': state.get('started_at'), 'completed_at': state.get('completed_at'),
-        'roles': state.get('roles', {}), 'role_names': state.get('role_names', {}),
+        'session_id':       state['session_id'],
+        'scenario_id':      state['scenario_id'],
+        'outcome':          state.get('outcome'),
+        'phases_completed': list(state.get('completed_stage_ids', [])),
+        'correct_choices':  correct,
+        'wrong_choices':    len(history) - correct,
+        'attempts_used':    state['max_attempts'] - state['attempts_remaining'],
+        'started_at':       state.get('started_at'),
+        'completed_at':     state.get('completed_at'),
+        'roles':            state.get('roles', {}),
+        'role_names':       state.get('role_names', {}),
+        'decision_history': history,   # full history for the debrief visualiser
     }
 
 

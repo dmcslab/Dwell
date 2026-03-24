@@ -113,6 +113,8 @@ export interface DecisionRecord {
   consequence:           string
   technical_explanation: string
   timestamp:             string
+  decided_by?:           string
+  decided_by_role?:      PlayerRole
 }
 
 export interface GameState {
@@ -185,6 +187,7 @@ export interface SessionSummary {
   completed_at:      string | null
   roles:             Record<string, PlayerRole>
   role_names:        Record<string, string>
+  decision_history:  DecisionRecord[] 
 }
 
 // ── Suggestion tracking ───────────────────────────────────────────────────────

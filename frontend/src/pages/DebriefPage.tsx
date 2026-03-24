@@ -1,3 +1,5 @@
+import { BranchVisualiser } from '../components/BranchVisualiser'
+import { ScoreCard } from '../components/ScoreCard'
 import { useState } from 'react'
 import { IrPhaseBadge }   from '../components/IrPhaseBadge'
 import { useReportPdf }   from '../hooks/useReportPdf'
@@ -81,7 +83,12 @@ export function DebriefPage({ summary, scenario, onPlayAgain, onBack }: Props) {
             ))}
           </div>
         </div>
-
+        {summary.decision_history?.length > 0 && (
+        <BranchVisualiser
+          decisionHistory={summary.decision_history}
+          decisionTree={scenario.scenario_structure.decisionTree}
+        />
+      )}
         {/* Lessons learned */}
         {s.lessonsLearned?.length > 0 && (
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">

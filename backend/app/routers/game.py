@@ -290,8 +290,13 @@ async def websocket_game(ws: WebSocket, session_id: str, name: str = Query(defau
                             {"type": "error", "message": "Only the IR Lead can submit the final decision"})
                         continue
                     new_state, choice_result = process_choice(cur, decision_tree, stage_id, option_index)
-                    choice_result["decided_by"] = name
-                    choice_result["decided_by_role"] = cur.get("roles", {}).get(client_id, "solo")
+                    decided_by_role = cur.get("roles", {}).get(client_id, "solo")
+                    choice_result["decided_by"]      = name
+                    choice_result["decided_by_role"] = decided_by_role
+                    if new_state.get("decision_history"):
+                        new_state["decision_history"][-1]["decided_by"]      = name
+                        new_state["decision_history"][-1]["decided_by_role"] = decided_by_role
+ 
                     await set_state(redis, session_id, new_state)
                     await ws_manager.broadcast_all(session_id, choice_result)
                     if choice_result.get("game_over"):
