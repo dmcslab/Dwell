@@ -1,13 +1,23 @@
 """FastAPI application factory."""
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.database import close_redis
 from app.routers.auth import router as auth_router
 from app.routers.scenarios import router as scenarios_router
 from app.routers.game import router as game_router
 from app.routers.admin import router as admin_router
+
+# ── Rate limiter ──────────────────────────────────────────────────────────────
+# Keyed on the client IP address.  Behind a reverse proxy / Cloudflare Tunnel
+# the real IP is in X-Forwarded-For; uvicorn is started with --proxy-headers
+# so get_remote_address() already reads the correct forwarded IP.
+limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager
@@ -22,6 +32,10 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Attach the limiter to app state and register the 429 handler
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS: support wildcard "*" for open deployments or specific URLs
 _raw = settings.ALLOWED_ORIGINS.strip()
