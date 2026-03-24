@@ -12,6 +12,7 @@ import { RoleSelectPage }       from './RoleSelectPage'
 import { SpectatorView }        from './SpectatorView'
 import { useWebSocketGame }     from '../hooks/useWebSocketGame'
 import { DwellLogo } from '../components/DwellLogo'
+import { hashSeed }             from '../lib/siemLogs'
 import { ROLE_DEFINITIONS }     from '../types/scenario'
 import type { GameState, PlayerRole, ScenarioFull, SessionSummary } from '../types/scenario'
 
@@ -313,6 +314,7 @@ export function ScenarioPlayer({ scenarioId, initialSessionId, initialPlayerName
                 keyTTPs={scenario.scenario_structure.keyTTPs}
                 paused={phase === 'briefing'}
                 roleFilter={sieFilter}
+                sessionSeed={hashSeed(sessionId)}
               />
             ) : (
               <ActivityLog entries={ws.activityLog} />

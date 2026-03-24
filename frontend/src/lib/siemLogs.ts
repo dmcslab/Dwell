@@ -38,22 +38,50 @@ const PROCESS_LEGIT = ['svchost.exe', 'explorer.exe', 'lsass.exe', 'wininit.exe'
 const PROCESS_SUSP  = ['powershell.exe', 'cmd.exe', 'wscript.exe', 'cscript.exe', 'mshta.exe', 'regsvr32.exe', 'certutil.exe', 'bitsadmin.exe', 'wmic.exe', 'rundll32.exe']
 const PROCESS_TOOLS = ['psexec.exe', 'psexesvc.exe', 'mimikatz.exe', 'cobalt_strike.exe', 'vssadmin.exe', 'wevtutil.exe', 'net.exe', 'nltest.exe', 'bloodhound.exe', 'rclone.exe', 'adfind.exe']
 
+// ── Seeded PRNG ───────────────────────────────────────────────────────────────
+// Enables the initial log backlog to be deterministic per session+phase so all
+// players in the same multiplayer session see the same starting log context.
+
+let _rand: () => number = Math.random.bind(Math)
+
+function mulberry32(seed: number): () => number {
+  let s = seed
+  return (): number => {
+    s = (s + 0x6D2B79F5) | 0
+    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 0x100000000
+  }
+}
+
+/**
+ * Derive a stable numeric seed from a string (e.g. session_id).
+ * Exported so ScenarioPlayer can compute it once and pass it as a prop.
+ */
+export function hashSeed(str: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 0x01000193)
+  }
+  return h >>> 0
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 let _logId = 0
 const nextId = () => ++_logId
 
 function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]
+  return arr[Math.floor(_rand() * arr.length)]
 }
 
 function pickN<T>(arr: T[], n: number): T[] {
-  const shuffled = [...arr].sort(() => Math.random() - 0.5)
+  const shuffled = [...arr].sort(() => _rand() - 0.5)
   return shuffled.slice(0, n)
 }
 
 function randInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min
+  return Math.floor(_rand() * (max - min + 1)) + min
 }
 
 function fmtTs(offsetMs = 0): string {
@@ -76,7 +104,9 @@ function randPort(): number {
 }
 
 function randHash(len = 8): string {
-  return Math.random().toString(16).slice(2, 2 + len).toUpperCase()
+  return Array.from({ length: len }, () =>
+    Math.floor(_rand() * 16).toString(16)
+  ).join('').toUpperCase()
 }
 
 // ── Log templates organised by TTP category ───────────────────────────────────
@@ -316,12 +346,21 @@ function getPhaseKey(irPhase: string): string {
 /**
  * Generate a batch of log lines appropriate for the given scenario context.
  * `keyTTPs` are parsed to weight towards relevant attack categories.
+ * Pass `seed` (derived from session_id) to make the batch identical across
+ * all clients in the same multiplayer session.
  */
 export function generateLogBatch(
   irPhase:   string,
   keyTTPs:   string[],
   count      = 6,
+  seed?:     number,
 ): SiemLogLine[] {
+  // Swap in seeded PRNG for this call so all clients get the same batch
+  const prevRand = _rand
+  if (seed !== undefined) {
+    _rand = mulberry32(seed ^ hashSeed(irPhase))
+  }
+
   const phaseKey   = getPhaseKey(irPhase)
   const config     = PHASE_WEIGHTS[phaseKey] ?? PHASE_WEIGHTS['Detection & Analysis']
 
@@ -336,7 +375,7 @@ export function generateLogBatch(
   const lines: SiemLogLine[] = []
 
   for (let i = 0; i < count; i++) {
-    const isBaseline = Math.random() < config.baselineRatio
+    const isBaseline = _rand() < config.baselineRatio
     const category   = isBaseline ? 'baseline' : pick(uniqueCategories)
     const pool       = TEMPLATES[category] ?? TEMPLATES['baseline']
     const template   = pick(pool)
@@ -344,18 +383,40 @@ export function generateLogBatch(
 
     lines.push({
       id:  nextId(),
-      ts:  fmtTs(Math.random() < 0.3 ? randInt(0, 5000) : 0),
+      ts:  fmtTs(_rand() < 0.3 ? randInt(0, 5000) : 0),
       ...entry,
     })
   }
 
-  // Sort by time descending (newest first)
-  return lines.sort((a, b) => b.ts.localeCompare(a.ts))
+  // Restore previous random function before sorting/returning
+  _rand = prevRand
+
+  // Sort by time descending (newest first) — midnight-crossing safe
+  return lines.sort((a, b) => compareTs(a.ts, b.ts))
 }
 
 /**
- * Generate a single new log line (used for streaming).
+ * Convert an HH:MM:SS.mmm timestamp string to milliseconds since midnight.
  */
+function tsToMs(ts: string): number {
+  const [h, m, rest] = ts.split(':')
+  const [s, ms]      = rest.split('.')
+  return (Number(h) * 3600 + Number(m) * 60 + Number(s)) * 1000 + Number(ms)
+}
+
+/**
+ * Compare two HH:MM:SS.mmm timestamps with midnight-crossing awareness.
+ * If the two times differ by more than 12 hours, assume they straddle midnight
+ * and adjust accordingly — so "23:59" correctly sorts as older than "00:01".
+ * Returns positive when b is newer (for descending / newest-first sort).
+ */
+function compareTs(a: string, b: string): number {
+  const DAY  = 86_400_000
+  let   diff = tsToMs(b) - tsToMs(a)
+  if (diff >  DAY / 2) diff -= DAY
+  if (diff < -DAY / 2) diff += DAY
+  return diff
+}
 export function generateLogLine(
   irPhase: string,
   keyTTPs: string[],
