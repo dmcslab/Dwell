@@ -15,6 +15,7 @@ interface SavedSession {
   sessionId:  string
   playerName: string
   shareLink:  string
+  joinToken:  string   // HMAC token — required for WS authentication
   joinRole?:  string
 }
 
@@ -33,8 +34,8 @@ function clearSession() {
 
 type Route =
   | { name: 'selector' }
-  | { name: 'player';  scenarioId: number; sessionId: string; playerName: string; shareLink: string; joinRole?: PlayerRole }
-  | { name: 'join';    sessionId: string }
+  | { name: 'player';  scenarioId: number; sessionId: string; playerName: string; shareLink: string; joinToken: string; joinRole?: PlayerRole }
+  | { name: 'join';    sessionId: string; joinToken: string }
   | { name: 'debrief'; summary: SessionSummary; scenario: ScenarioFull }
   | { name: 'admin' }
 
@@ -57,16 +58,35 @@ function ThemeToggle() {
 export default function App() {
   const [route, setRoute] = useState<Route>(() => {
     const hash = window.location.hash
-    const joinMatch = hash.match(/^#\/join\/([^/]+)$/)
-    if (joinMatch) return { name: 'join', sessionId: joinMatch[1] }
+
+    // Share link format: #/join/{session_id}/{join_token}
+    const joinMatch = hash.match(/^#\/join\/([^/]+)\/([^/]+)$/)
+    if (joinMatch) return { name: 'join', sessionId: joinMatch[1], joinToken: joinMatch[2] }
+
     const saved = loadSession()
-    if (saved) return { name: 'player', ...saved, joinRole: saved.joinRole as PlayerRole | undefined }
+    if (saved) return {
+      name:      'player',
+      scenarioId: saved.scenarioId,
+      sessionId:  saved.sessionId,
+      playerName: saved.playerName,
+      shareLink:  saved.shareLink,
+      joinToken:  saved.joinToken,
+      joinRole:   saved.joinRole as PlayerRole | undefined,
+    }
+
     return { name: 'selector' }
   })
 
   const go = (r: Route) => {
     if (r.name === 'player') {
-      saveSession({ scenarioId: r.scenarioId, sessionId: r.sessionId, playerName: r.playerName, shareLink: r.shareLink, joinRole: r.joinRole })
+      saveSession({
+        scenarioId: r.scenarioId,
+        sessionId:  r.sessionId,
+        playerName: r.playerName,
+        shareLink:  r.shareLink,
+        joinToken:  r.joinToken,
+        joinRole:   r.joinRole,
+      })
       window.location.hash = `#/play/${r.sessionId}`
     } else {
       clearSession()
@@ -81,8 +101,8 @@ export default function App() {
       {route.name === 'selector' && (
         <ScenarioSelector
           onSelect={() => {}}
-          onSelectWithSession={(scenarioId, sessionId, playerName, shareLink) =>
-            go({ name: 'player', scenarioId, sessionId, playerName, shareLink })
+          onSelectWithSession={(scenarioId, sessionId, playerName, shareLink, joinToken) =>
+            go({ name: 'player', scenarioId, sessionId, playerName, shareLink, joinToken })
           }
         />
       )}
@@ -90,10 +110,11 @@ export default function App() {
       {route.name === 'player' && (
         <ScenarioPlayer
           scenarioId={route.scenarioId}
-          initialSessionId={route.sessionId  || undefined}
+          initialSessionId={route.sessionId   || undefined}
           initialPlayerName={route.playerName || undefined}
           initialShareLink={route.shareLink   || undefined}
-          initialRole={route.joinRole || undefined}
+          initialToken={route.joinToken       || undefined}
+          initialRole={route.joinRole         || undefined}
           onBack={() => go({ name: 'selector' })}
           onDebrief={(summary, scenario) => go({ name: 'debrief', summary, scenario })}
         />
@@ -102,8 +123,9 @@ export default function App() {
       {route.name === 'join' && (
         <JoinPage
           sessionId={route.sessionId}
-          onJoined={(scenarioId, sessionId, playerName, role) =>
-            go({ name: 'player', scenarioId, sessionId, playerName, shareLink: '', joinRole: role })
+          joinToken={route.joinToken}
+          onJoined={(scenarioId, sessionId, playerName, role, joinToken) =>
+            go({ name: 'player', scenarioId, sessionId, playerName, shareLink: '', joinToken, joinRole: role })
           }
           onBack={() => go({ name: 'selector' })}
         />
