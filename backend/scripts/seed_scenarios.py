@@ -2,7 +2,7 @@
 """
 scripts/seed_scenarios.py — v3 Complete IR Simulation Scenarios
 ----------------------------------------------------------------
-All 15 scenarios are analyst simulations following NIST SP 800-61r2.
+All 20 scenarios are analyst simulations following NIST SP 800-61r2.
 NO company names, years, or ransom amounts referenced.
 Each scenario is grounded in real ransomware TTPs from CISA/MITRE research.
 
