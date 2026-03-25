@@ -24,16 +24,36 @@ const PANIC_PHASE_PREFIXES = ['containment', 'eradication', 'emergency']
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function LogRow({ line, isNew }: { line: SiemLogLine; isNew: boolean }) {
+function LogRow({ line, isNew, rowIndex }: { line: SiemLogLine; isNew: boolean; rowIndex: number }) {
+  const isEven    = rowIndex % 2 === 0
+  const isCrit    = line.severity === 'CRITICAL'
+  const isHigh    = line.severity === 'HIGH'
+
   return (
     <div
-      className={`flex gap-2 items-start font-mono text-[11px] leading-tight px-3 py-1 border-b border-gray-800/60 transition-colors duration-300 ${
-        isNew ? 'bg-gray-700/30' : 'bg-transparent'
-      }`}
+      className={`flex gap-2 items-start font-mono text-[11px] leading-tight
+        px-3 py-1.5 border-b border-gray-800/40 transition-colors duration-300
+        border-l-2
+        ${isNew
+          ? 'bg-cyan-950/20 border-l-cyan-500/60'
+          : isCrit
+            ? 'border-l-red-600/70 ' + (isEven ? 'bg-red-950/10' : 'bg-transparent')
+            : isHigh
+              ? 'border-l-orange-700/50 ' + (isEven ? 'bg-gray-900/60' : 'bg-transparent')
+              : 'border-l-transparent ' + (isEven ? 'bg-gray-900/40' : 'bg-transparent')
+        }`}
     >
-      {/* Severity dot */}
-      <div className="shrink-0 mt-1">
-        <span className={`inline-block w-1.5 h-1.5 rounded-full ${SEVERITY_DOT[line.severity]}`} />
+      {/* Severity pill */}
+      <div className="shrink-0 w-[42px]">
+        <span className={`inline-block text-[10px] font-mono font-bold px-1 py-0.5 rounded leading-none
+          ${line.severity === 'CRITICAL' ? 'bg-red-900/60    text-red-300'    :
+            line.severity === 'HIGH'     ? 'bg-orange-900/60 text-orange-300' :
+            line.severity === 'WARN'     ? 'bg-amber-900/40  text-amber-400'  :
+            line.severity === 'MEDIUM'   ? 'bg-yellow-900/30 text-yellow-500' :
+                                           'bg-gray-800      text-gray-500'   }`}>
+          {line.severity === 'CRITICAL' ? 'CRIT' :
+           line.severity === 'MEDIUM'   ? 'MED'  : line.severity}
+        </span>
       </div>
 
       {/* Timestamp */}
@@ -236,7 +256,7 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter, se
 
       {/* Column headers */}
       <div className="shrink-0 flex gap-2 px-3 py-1 border-b border-gray-800 bg-gray-900/50 font-mono text-[11px] text-gray-600 uppercase tracking-wider">
-        <span className="w-1.5 shrink-0" />
+        <span className="w-[42px] shrink-0" />
         <span className="w-[82px] shrink-0">Time</span>
         <span className="w-[62px] shrink-0">Source</span>
         <span className="w-[78px] shrink-0">Event ID</span>
@@ -253,8 +273,8 @@ export function SiemFeedPanel({ irPhase, keyTTPs, paused = false, roleFilter, se
         {visible.length === 0 ? (
           <p className="text-gray-600 text-xs text-center pt-6 font-mono">No events match current filter</p>
         ) : (
-          visible.map(line => (
-            <LogRow key={line.id} line={line} isNew={newIds.has(line.id)} />
+          visible.map((line, idx) => (
+            <LogRow key={line.id} line={line} isNew={newIds.has(line.id)} rowIndex={idx} />
           ))
         )}
         <div ref={bottomRef} />

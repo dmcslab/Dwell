@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { gameApi }              from '../api/game'
 import { ActivityLog }          from '../components/ActivityLog'
 import { AttemptsMeter }        from '../components/AttemptsMeter'
@@ -99,7 +99,9 @@ export function ScenarioPlayer({
   const [rightTab,        setRightTab]        = useState<'siem' | 'activity'>('siem')
   const [stableScenario,  setStableScenario]  = useState<ScenarioFull | null>(null)
   const [stableGameState, setStableGameState] = useState<GameState | null>(null)
-
+  const mountedRef = useRef(true)
+  
+  useEffect(() => () => { mountedRef.current = false }, [])
   useEffect(() => { gameApi.getScenario(scenarioId).then(setScenarioMeta).catch(() => {}) }, [scenarioId])
 
   const ws = useWebSocketGame(sessionId, playerName, joinToken)
@@ -121,7 +123,7 @@ export function ScenarioPlayer({
       }, 1500)
       return () => clearTimeout(t)
     }
-  }, [ws.summary])
+  }, [ws.summary, ws.scenario])
 
   const handleStart = async () => {
     setStarting(true); setStartErr('')
