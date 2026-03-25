@@ -1654,6 +1654,1170 @@ SCENARIOS.append({
         "referenceLinks": ["https://www.cisa.gov/stopransomware/ransomware-guide", "https://attack.mitre.org/software/S0154/", "https://www.nist.gov/publications/computer-security-incident-handling-guide"]
     }
 })
+SCENARIOS.append({
+    "name": "Operation: Exposed Gateway",
+    "description": "An unpatched SSL VPN appliance exposed to the internet is exploited to steal credentials. REvil ransomware is deployed across a global financial services network, taking transaction processing offline worldwide.",
+    "initial_prompt": "You are a Tier-2 SOC analyst at a global currency exchange services firm. 06:42 — automated monitoring: 'VPN appliance authentication log: 847 successful logins from IP 91.108.4.0/24 (Tor exit node range) in the past 6 hours. No MFA challenges triggered.' Service desk simultaneously reports staff in three offices cannot log into the transaction processing platform. Where do you start?",
+    "difficulty_level": "medium",
+    "max_attempts": 3,
+    "scenario_structure": {
+        "ransomwareFamily": "REvil/Sodinokibi-class (CVE-2019-11510 Pulse Secure VPN exploitation → credential theft from memory → lateral movement via RDP/SMB → REvil ransomware deployment → double extortion)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Pulse Secure VPN CVE-2019-11510 arbitrary file read → /data/runtime/mtmp/lmdb/dataa/data.mdb credential store exfiltration → valid account reuse → RDP lateral movement → domain admin escalation → VSS deletion → REvil deployment via PsExec",
+        "keyTTPs": [
+            "T1190 — Exploit Public-Facing Application (Pulse Secure CVE-2019-11510)",
+            "T1078 — Valid Accounts (stolen VPN credentials replayed)",
+            "T1021.001 — Remote Services: RDP (lateral movement post-VPN)",
+            "T1003.001 — OS Credential Dumping: LSASS Memory",
+            "T1486 — Data Encrypted for Impact",
+            "T1490 — Inhibit System Recovery (VSS deletion)",
+            "T1041 — Exfiltration Over C2 Channel (double extortion)"
+        ],
+        "simulationContext": "Global financial services firm providing foreign currency exchange across 200+ locations. Internet-facing Pulse Secure VPN appliance — patch for CVE-2019-11510 released 6 months ago, not applied. VPN logs centralized in SIEM. RDP enabled on all Windows servers. No EDR — legacy AV only. Transaction processing platform runs on Windows Server 2016 cluster.",
+        "decisionTree": [
+            {
+                "stageId": "s0_vpn_triage",
+                "irPhase": "Detection & Analysis",
+                "prompt": "SIEM shows 847 successful authentications from Tor exit nodes to the VPN over 6 hours — all using valid employee credentials. The VPN appliance is running firmware from 18 months ago. CVE-2019-11510 is a critical unauthenticated arbitrary file read on this exact version — it allows attackers to extract the plaintext credential store without logging in. What is your immediate first action?",
+                "analystContext": "CVE-2019-11510 PoC is public. The credential store file at /data/runtime/mtmp/lmdb/dataa/data.mdb contains all active VPN session credentials in plaintext. The 847 successful logins used credentials matching 23 real employee accounts.",
+                "networkContext": "VPN appliance is internet-facing on DMZ. Internal network accessible only via VPN. Firewall logs show the 91.108.4.0/24 range hitting /dana-na/auth/url_default/welcome.cgi — the CVE-2019-11510 exploit endpoint.",
+                "endpointContext": "No EDR telemetry on the VPN appliance itself — it runs a proprietary OS. Windows workstations behind VPN show no alerts. Internal SIEM has VPN auth logs but no appliance-level file access logs.",
+                "irLeadContext": "23 employee accounts potentially compromised. VPN is the only remote access path. Shutting it down cuts off 400 remote workers. Executive escalation required before any decision affecting VPN availability.",
+                "options": [
+                    {
+                        "actionText": "Force-expire all 23 compromised employee passwords and enable MFA on VPN immediately, then investigate the appliance",
+                        "isCorrect": True,
+                        "consequence": "Stolen credentials invalidated within 8 minutes. Attacker's active VPN sessions terminated. MFA blocks replay of any additional credentials extracted from the store. Appliance investigation can proceed safely.",
+                        "nextStageId": "s1_credential_scope",
+                        "technicalExplanation": "CVE-2019-11510 allows extraction of the credential store without authentication. All credentials in that store must be treated as compromised. Forcing expiry and enabling MFA simultaneously closes the credential-reuse attack path. This is the containment action — investigation of how far the attacker moved follows immediately after."
+                    },
+                    {
+                        "actionText": "Immediately shut down the VPN appliance to stop the attacker",
+                        "isCorrect": False,
+                        "consequence": "VPN shutdown cuts access for 400 remote workers and halts 60% of transaction processing operations. Attacker has already moved laterally via RDP using harvested credentials — they no longer need the VPN.",
+                        "nextStageId": "s1_credential_scope",
+                        "technicalExplanation": "Once credentials are extracted and lateral movement has begun, the VPN appliance is no longer the attacker's access point. Shutting it down creates maximum business disruption without stopping the threat. The credential-reuse attack path must be closed first — that means expiring passwords and enabling MFA, not taking down the gateway."
+                    },
+                    {
+                        "actionText": "Apply the CVE-2019-11510 patch to the VPN appliance immediately",
+                        "isCorrect": False,
+                        "consequence": "Patching takes 2 hours and requires a maintenance window. During that time the attacker completes lateral movement using already-harvested credentials. The patch closes the vulnerability but does nothing about the credentials already stolen.",
+                        "nextStageId": "s1_credential_scope",
+                        "technicalExplanation": "Patching the vulnerability prevents further credential extraction but has no effect on credentials already stolen. The attacker has had 6+ hours to extract the full credential store — the attack is already in the lateral movement phase. Credential invalidation must precede patching as the immediate priority."
+                    },
+                    {
+                        "actionText": "Monitor VPN sessions passively and gather more data before acting to avoid alerting the attacker",
+                        "isCorrect": False,
+                        "consequence": "12 additional minutes of monitoring. Attacker uses valid credentials to RDP into the domain controller. Domain admin access established. Ransomware deployed 4 hours later.",
+                        "nextStageId": "s1_credential_scope",
+                        "technicalExplanation": "Passive monitoring during active lateral movement is one of the most costly mistakes in incident response. Every minute the attacker has valid credentials, they can escalate privilege and move deeper. The goal of early containment is to interrupt the attack chain before the attacker reaches high-value assets — not to observe it."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_credential_scope",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Passwords expired, MFA enabled. Active VPN sessions terminated. Now you need to understand how far the attacker moved. SIEM shows: 14 of the 23 compromised accounts were used to initiate RDP sessions to internal Windows servers in the past 6 hours. Three accounts accessed the domain controller. Forensic evidence shows Mimikatz was run on TXPROC-SRV-01 (the transaction processing server). What do you scope next?",
+                "analystContext": "Order of priority: domain controller access is the worst-case outcome. If domain admin credentials were harvested from the DC, all domain accounts must be treated as compromised — not just the 23 VPN accounts.",
+                "networkContext": "RDP logs available via SIEM (Windows Event ID 4624 Type 10). Mimikatz execution confirmed via SIEM alert: LSASS access by non-system process on TXPROC-SRV-01 at 03:17. TXPROC-SRV-01 had two domain admin accounts logged in at time of access.",
+                "endpointContext": "TXPROC-SRV-01 Windows event logs show: Event 10 LSASS access (Mimikatz indicator), Event 4648 explicit credential logon, Event 7045 new service installed (PsExec artifact). Machine still online and connected to domain.",
+                "irLeadContext": "If domain admin credentials are compromised, the blast radius is the entire domain — every Windows system, every service account, every trust relationship. This decision determines the scope of credential reset required.",
+                "options": [
+                    {
+                        "actionText": "Reset only the 23 originally compromised VPN account passwords since those are the known stolen credentials",
+                        "isCorrect": False,
+                        "consequence": "Mimikatz on TXPROC-SRV-01 harvested domain admin credentials from LSASS memory. Those credentials were not in the VPN store. Attacker retains domain admin access after the 23 resets.",
+                        "nextStageId": "s2_lateral_containment",
+                        "failBranchStageId": "s_domain_takeover",
+                        "technicalExplanation": "Mimikatz (T1003.001) extracts credentials from LSASS memory — these are the credentials of accounts currently or recently logged into that machine, not just the account that ran Mimikatz. Any domain admin account that had an active session on TXPROC-SRV-01 had their credentials extracted. Scoping to only the 23 VPN accounts misses this critical credential harvest path."
+                    },
+                    {
+                        "actionText": "Treat all domain admin accounts as compromised: force-rotate all DA credentials, krbtgt twice, and all service accounts with DA privileges before continuing",
+                        "isCorrect": True,
+                        "consequence": "All domain admin paths closed. krbtgt double-reset invalidates any Golden Ticket material that may have been created. Attacker loses all privileged access paths. Lateral movement stops.",
+                        "nextStageId": "s2_lateral_containment",
+                        "technicalExplanation": "When Mimikatz runs on a domain-joined machine with DA sessions, assume all DA credentials are harvested. krbtgt must be rotated twice (not once) to invalidate all Kerberos tickets. Service accounts with DA privileges are also in scope — they are frequently used for persistence and lateral movement. This is the correct blast-radius assessment for a confirmed LSASS dump on a DA-accessible machine."
+                    },
+                    {
+                        "actionText": "Isolate TXPROC-SRV-01 from the network and investigate it forensically before resetting any additional credentials",
+                        "isCorrect": False,
+                        "consequence": "TXPROC-SRV-01 isolated but attacker already used harvested DA credentials to access the domain controller and two other servers. Credential reset delayed by forensic collection process.",
+                        "nextStageId": "s2_lateral_containment",
+                        "technicalExplanation": "Forensic collection is important but must not delay credential rotation when LSASS dumping is confirmed. The credential exposure happened in the past — the harm is already done. Rotating credentials is the active containment action. Forensics runs in parallel, not in sequence."
+                    },
+                    {
+                        "actionText": "Disable RDP on all servers immediately to stop further lateral movement",
+                        "isCorrect": False,
+                        "consequence": "RDP disabled. Attacker switches to SMB (PsExec, WMI) using harvested DA credentials. Lateral movement continues via alternate protocols.",
+                        "nextStageId": "s2_lateral_containment",
+                        "technicalExplanation": "Blocking a single protocol (RDP) does not stop an attacker with valid domain admin credentials. DA can use WMI (T1047), PsExec/SMB (T1021.002), scheduled tasks (T1053.005), and WinRM (T1021.006) — all of which bypass RDP blocking. The credential is the access vector, not the protocol."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_lateral_containment",
+                "irPhase": "Containment",
+                "prompt": "DA credentials rotated, krbtgt double-reset complete. SIEM now shows REvil ransomware being deployed via PsExec from a compromised server to 12 additional hosts. Files are actively being encrypted. Three transaction processing servers are affected. The encryption is happening right now. What do you do?",
+                "analystContext": "PsExec deployment means ransomware is being pushed from a single source server (STAGING-SRV-02) to targets. Stopping the source server stops the spread — but the 12 already-hit hosts are mid-encryption.",
+                "networkContext": "SIEM shows SMB traffic bursts from STAGING-SRV-02 (10.10.4.22) to 12 hosts simultaneously. Firewall has host-based isolation capability — can block all SMB from a specific source IP within 90 seconds via rule push.",
+                "endpointContext": "Affected hosts show: vssadmin.exe deleting shadow copies, wmic.exe stopping backup services, and high disk I/O. EDR absent — detection is via SIEM process creation events only.",
+                "irLeadContext": "Transaction processing servers going offline will halt all currency exchange globally. Business impact is immediate and severe. Executive team is demanding status. Containment decision must be communicated within 10 minutes.",
+                "options": [
+                    {
+                        "actionText": "Push firewall rule to block all outbound SMB from STAGING-SRV-02 AND simultaneously isolate all 12 affected hosts via network ACL",
+                        "isCorrect": True,
+                        "consequence": "SMB pivot blocked from source. 12 hosts network-isolated simultaneously. Encryption continues on already-infected hosts but cannot spread further. Transaction processing loss contained to 12 servers.",
+                        "nextStageId": "s3_ransomware_scope",
+                        "technicalExplanation": "Active ransomware deployment via PsExec requires two simultaneous actions: (1) stop the distribution point (firewall rule on STAGING-SRV-02's outbound SMB), and (2) isolate already-infected hosts to prevent them becoming secondary distributors. Both actions must be simultaneous — sequential isolation misses the window where already-infected hosts begin scanning for additional targets."
+                    },
+                    {
+                        "actionText": "Power off STAGING-SRV-02 immediately to stop the ransomware deployment",
+                        "isCorrect": False,
+                        "consequence": "STAGING-SRV-02 powered off. But 4 of the 12 infected hosts have already started scanning for additional targets and acting as secondary distribution points. Ransomware spreads to 7 more servers.",
+                        "nextStageId": "s3_ransomware_scope",
+                        "technicalExplanation": "Modern RaaS ransomware is designed for self-propagation — infected hosts do not wait for the original distribution point. Once a host is infected, it begins its own lateral movement and distribution. Killing the original source stops direct deployment from that server but does not stop already-infected hosts from spreading."
+                    },
+                    {
+                        "actionText": "Focus on recovering the transaction processing servers first — restore from backup while encryption is still happening on other hosts",
+                        "isCorrect": False,
+                        "consequence": "Recovery attempted on TXPROC-SRV-01. During restoration, ransomware from STAGING-SRV-02 re-infects it via SMB. Restoration fails. Two recovery attempts wasted.",
+                        "nextStageId": "s3_ransomware_scope",
+                        "technicalExplanation": "Attempting recovery before containment is complete guarantees re-infection. You cannot restore a system into an environment that still has active ransomware distribution. Containment must complete before any recovery action begins. This is a fundamental NIST 800-61r2 sequencing principle."
+                    },
+                    {
+                        "actionText": "Notify the business that transaction processing is unavailable and wait for ransomware to finish before taking action",
+                        "isCorrect": False,
+                        "consequence": "Ransomware completes encryption on 12 servers and spreads to 19 more during the wait. All transaction processing and back-office systems encrypted.",
+                        "nextStageId": "s3_ransomware_scope",
+                        "technicalExplanation": "Waiting for active ransomware to finish before responding allows full propagation. REvil scans for additional targets aggressively during the deployment phase. Every minute of inaction during active deployment results in exponential increase in affected hosts."
+                    }
+                ]
+            },
+            {
+                "stageId": "s3_ransomware_scope",
+                "irPhase": "Containment",
+                "prompt": "Spread contained. Final scope: 12 servers encrypted including 3 transaction processing nodes, 2 database servers, and 7 back-office servers. VSS snapshots deleted on all 12. Backup server shows last successful backup 11 hours ago. The attacker has left a ransom note claiming data was exfiltrated before encryption. Your backup retention policy is 30 days. What is your recovery strategy?",
+                "analystContext": "Key question: was data actually exfiltrated, or is the exfiltration claim a bluff? Evidence for real exfiltration: rclone.exe was found in prefetch on STAGING-SRV-02, and SIEM shows 180GB of HTTPS traffic to a Mega.nz endpoint 3 hours before encryption.",
+                "networkContext": "SIEM: outbound HTTPS to storage.bunnycdn.com and api.mega.co.nz totaling 180GB between 00:14 and 03:28. This predates the ransomware deployment by 3 hours. rclone.exe in prefetch on STAGING-SRV-02 confirms cloud sync tool execution.",
+                "endpointContext": "STAGING-SRV-02 prefetch: rclone.exe executed at 00:14. File access audit logs show bulk reads from the Finance share and customer database directories between 00:14 and 03:28.",
+                "irLeadContext": "If data was exfiltrated, this is a notifiable breach. Regulatory notification timelines start from discovery. Deciding whether to treat this as a confirmed breach (with mandatory notification) or a suspected breach (with investigation time) has significant legal implications.",
+                "options": [
+                    {
+                        "actionText": "Treat exfiltration as confirmed based on rclone evidence and HTTPS volume. Begin regulatory breach notification process while simultaneously planning recovery from 11-hour-old backups.",
+                        "isCorrect": True,
+                        "consequence": "Legal and compliance team notified. Breach notification process initiated with 72-hour regulatory clock. Recovery planning begins with 11-hour RPO. Both workstreams run in parallel — regulatory and technical teams not blocked by each other.",
+                        "nextStageId": "s4_recovery",
+                        "technicalExplanation": "rclone.exe in prefetch + 180GB of outbound HTTPS to known cloud storage endpoints before ransomware deployment is strong forensic evidence of deliberate data staging and exfiltration (T1041, T1537). GDPR and financial services regulations require notification when exfiltration is reasonably suspected — waiting for full forensic confirmation to notify extends regulatory exposure. Both tracks must run in parallel."
+                    },
+                    {
+                        "actionText": "Attempt to negotiate with the attacker to obtain a decryption key — recovery from backup has an 11-hour gap that cannot be accepted for transaction processing",
+                        "isCorrect": False,
+                        "consequence": "Negotiation begins. Attacker demands large payment. While negotiation continues, regulatory notification clock runs. 72-hour window approaches. Backup restoration was faster but was delayed for negotiation.",
+                        "nextStageId": "s4_recovery",
+                        "technicalExplanation": "Ransom payment may or may not provide a working decryptor — REvil operations have a mixed history of decryptor delivery. More critically, payment does not address the exfiltration — the data is already in attacker hands and may still be published. Backup recovery of an 11-hour gap is operationally painful but finite and reliable. Ransom payment is neither."
+                    },
+                    {
+                        "actionText": "Prioritize full forensic investigation of exfiltration before starting recovery — understand exactly what was stolen before notifying regulators",
+                        "isCorrect": False,
+                        "consequence": "Forensic investigation takes 8 days. Regulatory 72-hour notification window expires. Breach notification is now late — a separate regulatory violation.",
+                        "nextStageId": "s4_recovery",
+                        "technicalExplanation": "Waiting for forensic certainty before notification is a common but legally dangerous approach. Most financial services regulations require notification when an incident is reasonably believed to involve personal or financial data — not after full forensic confirmation. The forensic investigation continues after notification, not before."
+                    },
+                    {
+                        "actionText": "Restore from backup immediately without investigating the exfiltration claim — treat it as a bluff",
+                        "isCorrect": False,
+                        "consequence": "Restoration succeeds. Two weeks later the attacker publishes 60,000 customer financial records on a leak site. Regulatory investigation finds notification was delayed. Penalties issued.",
+                        "nextStageId": "s4_recovery",
+                        "technicalExplanation": "Dismissing exfiltration claims without investigating the available evidence (rclone in prefetch, 180GB outbound HTTPS) is negligent. Double extortion (T1657) is a confirmed REvil tactic — data is staged before encryption specifically to create leverage after recovery. The evidence threshold for triggering breach investigation procedures is reasonable suspicion, not certainty."
+                    }
+                ]
+            },
+            {
+                "stageId": "s4_recovery",
+                "irPhase": "Eradication & Recovery",
+                "prompt": "Breach notification initiated. Recovery plan approved. 11-hour backup gap accepted by executive team. All 12 servers need rebuild from last known-good state. During the rebuild, IT asks: 'Can we just restore the database servers from backup directly onto the same OS without reimaging — it will save 6 hours?' Security team needs to advise.",
+                "analystContext": "The 12 encrypted servers were also accessed by the attacker for reconnaissance and staging. Restoring data onto a potentially backdoored OS image is the key risk. The 6-hour time saving is real — but so is the persistence risk.",
+                "networkContext": "STAGING-SRV-02 was the attacker's primary pivot. Network logs show it made outbound connections to 3 C2 IPs. Whether those connections planted persistent backdoors on the other servers is unknown without forensic analysis of each one.",
+                "endpointContext": "Forensic analysis of STAGING-SRV-02 found: 2 scheduled tasks for persistence (T1053.005), a registry run key (T1547.001), and a WMI event subscription (T1546.003). These would survive a data-only restore onto an existing OS.",
+                "irLeadContext": "A 6-hour reduction in downtime represents significant revenue recovery. The business is under extreme pressure. The security team's recommendation must be defensible — both technically and to the board.",
+                "options": [
+                    {
+                        "actionText": "Recommend full OS reimage for all 12 servers before data restoration, citing the confirmed persistence mechanisms found on the pivot server",
+                        "isCorrect": True,
+                        "consequence": "All 12 servers reimaged from golden images. Data restored from backup. 6 additional hours downtime. Systems return clean. No re-compromise in 90-day follow-up period.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Persistence mechanisms found on STAGING-SRV-02 (scheduled tasks, registry run keys, WMI subscriptions) are standard REvil post-exploitation tradecraft applied across all accessed hosts. Restoring data onto a potentially backdoored OS preserves any implants installed during the dwell period. A reimage guarantees a clean OS baseline — it is the only defensible recovery posture after a confirmed domain compromise."
+                    },
+                    {
+                        "actionText": "Approve restore-in-place to save 6 hours — run a full AV scan after restoration as a compromise",
+                        "isCorrect": False,
+                        "consequence": "Restore-in-place completed. AV scan shows clean. Three weeks later the WMI event subscription (undetected by AV) triggers a Cobalt Strike beacon. Attacker regains access. Second incident.",
+                        "nextStageId": None,
+                        "technicalExplanation": "WMI event subscriptions, scheduled tasks, and registry run keys are living-off-the-land persistence mechanisms (T1546.003, T1053.005, T1547.001) — they use legitimate OS components and leave no files on disk. Signature AV cannot detect them. Only a reimage removes them with certainty."
+                    },
+                    {
+                        "actionText": "Reimage only the 3 transaction processing servers (highest value) and restore-in-place the remaining 9 to reduce downtime",
+                        "isCorrect": False,
+                        "consequence": "Transaction servers clean. One of the 9 restore-in-place servers has a WMI subscription backdoor. Attacker regains foothold from a back-office server and pivots back to the transaction processing environment.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Partial reimaging based on asset value is a false economy when persistence has been confirmed on the pivot server used to reach all 12 machines. Any server the attacker traversed is a potential persistence host — treating lower-value servers as lower-risk is incorrect when the attacker had equivalent access to all."
+                    },
+                    {
+                        "actionText": "Approve restore-in-place and perform detailed forensic analysis of each server's OS layer before reconnecting to the network",
+                        "isCorrect": False,
+                        "consequence": "Forensic analysis of 12 servers takes 9 days — 3 days longer than reimaging. Downtime extended beyond the 6 hours that would have been saved. All servers eventually reimaged anyway after analysis identifies persistence.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Full forensic analysis of 12 compromised OS instances is more time-consuming than reimaging them. When forensic evidence already confirms persistence tradecraft on the attacker's primary pivot point, the default assumption for all traversed hosts should be compromised. Forensics runs in parallel on a copy of the disk images — not as a prerequisite to recovery."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_domain_takeover",
+                "irPhase": "Containment",
+                "prompt": "CRITICAL: While you were rotating only the 23 VPN account passwords, the attacker used domain admin credentials harvested from LSASS to create a new privileged account ('svcbackup01') in Active Directory and establish a Golden Ticket. They now have persistent domain admin access that survives all password resets. SIEM alert: 'Kerberos ticket for non-existent user presented to domain controller.' The attacker is now deploying ransomware via GPO to all domain-joined machines simultaneously. How do you respond?",
+                "analystContext": "A Golden Ticket (T1558.001) is a forged Kerberos ticket signed with the krbtgt hash. It survives krbtgt password rotation ONCE — only a double rotation (24 hours apart or forced) invalidates all outstanding Golden Tickets. GPO-based ransomware deployment can reach every domain-joined machine within one Group Policy refresh cycle (default 90 minutes).",
+                "networkContext": "DC event logs show: Event 4768 (TGT request) for user 'svcbackup01' — account does not exist in AD. Event 4769 (TGS request) granted. GPO modification logged at 04:22: new GPO 'SystemUpdate' created, linked to domain root, executes revil.exe from SYSVOL share.",
+                "endpointContext": "SYSVOL share on DC contains revil.exe (2.3MB, unsigned). GPO refresh on all clients pulls and executes it. 40 workstations have already received the GPO. Encryption underway on those 40 machines.",
+                "options": [
+                    {
+                        "actionText": "Immediately take the domain controller offline to stop GPO distribution, rotate krbtgt twice, and block SYSVOL access from all clients",
+                        "isCorrect": True,
+                        "consequence": "DC taken offline — GPO distribution halted. SYSVOL no longer reachable — 160 remaining workstations cannot pull the malicious GPO. krbtgt double-rotation planned. Golden Ticket material invalidated. Damage limited to 40 machines.",
+                        "nextStageId": None,
+                        "technicalExplanation": "GPO-based mass deployment requires the DC to be reachable. Taking the DC offline is a high-impact but correct decision when the alternative is domain-wide encryption. krbtgt must be rotated TWICE to invalidate Golden Tickets — a single rotation leaves existing tickets valid for their remaining lifetime (up to 10 hours default). The double rotation must be performed with the DC online on an isolated VLAN, then the DC returned to production."
+                    },
+                    {
+                        "actionText": "Block the revil.exe hash at the perimeter firewall to prevent its download",
+                        "isCorrect": False,
+                        "consequence": "Hash blocked at perimeter. But revil.exe is in SYSVOL — an internal share on the DC, not downloaded from the internet. The block has no effect. GPO continues distributing ransomware to all domain clients.",
+                        "nextStageId": None,
+                        "technicalExplanation": "SYSVOL is an internal share replicated between domain controllers, accessed via SMB not HTTP. Perimeter firewall rules do not apply to internal SMB traffic. The attacker placed ransomware in SYSVOL to use legitimate GPO distribution — a technique (T1484.001) specifically chosen to bypass perimeter controls."
+                    },
+                    {
+                        "actionText": "Reset the svcbackup01 rogue account password and delete it from AD",
+                        "isCorrect": False,
+                        "consequence": "svcbackup01 deleted. But the Golden Ticket does not require the account to exist — it is signed with the krbtgt hash. GPO deployment continues. Attacker still has domain admin via Golden Ticket for up to 10 hours.",
+                        "nextStageId": None,
+                        "technicalExplanation": "A Golden Ticket is a self-contained forged Kerberos TGT — it does not require the originating account to exist in AD. Deleting the account that created the ticket has no effect on the ticket's validity. Only rotating the krbtgt key (twice, for full invalidation) destroys the ability to use or create Golden Tickets."
+                    },
+                    {
+                        "actionText": "Disconnect all workstations from the network via switch VLAN reassignment to prevent them from receiving the GPO",
+                        "isCorrect": False,
+                        "consequence": "Workstations disconnected from network. However, 40 already received the GPO and are encrypting offline. The 160 remaining are protected but the business network is completely down for all users.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Mass VLAN reassignment prevents GPO delivery to uninfected clients but is maximally disruptive. A more targeted response is to isolate the DC (stopping GPO distribution at source) while leaving client VLANs operational for those that have not yet received the malicious GPO. However, if DC isolation is not feasible immediately, VLAN isolation is a valid fallback — it is not wrong, just suboptimal compared to DC isolation."
+                    }
+                ]
+            }
+        ],
+        "referenceLinks": [
+            "https://nvd.nist.gov/vuln/detail/CVE-2019-11510",
+            "https://attack.mitre.org/techniques/T1190/",
+            "https://attack.mitre.org/techniques/T1558/001/",
+            "https://www.cisa.gov/sites/default/files/publications/AA20-302A_Ransomware%20Activity%20Targeting%20the%20Healthcare%20and%20Public%20Health%20Sector.pdf"
+        ]
+    }
+})
+
+SCENARIOS.append({
+    "name": "Operation: Payroll Zero",
+    "description": "A workforce management SaaS platform your organisation relies on for payroll and scheduling is hit by ransomware. As the customer's IR analyst, navigate the downstream crisis — manual process activation, data exposure assessment, and vendor pressure — without direct access to the victim environment.",
+    "initial_prompt": "You are a Tier-2 SOC analyst at a large healthcare system. 07:15 Monday — helpdesk: 'Staff cannot log into the workforce scheduling and payroll system. Login page returns a generic error.' You check vendor status page: blank. You call the vendor hotline: automated message only. Your HR director calls: 'Payroll runs Friday. If the system is down, 4,200 employees don't get paid.' What do you do?",
+    "difficulty_level": "easy",
+    "max_attempts": 3,
+    "scenario_structure": {
+        "ransomwareFamily": "Third-party SaaS ransomware impact (customer-side IR) — workforce management private cloud encrypted, downstream customers lose payroll, scheduling, and HR data access; unique scenario: analyst is the victim's customer, not the victim",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Ransomware deployed against SaaS vendor's private cloud → customer data encrypted or inaccessible → downstream operational disruption → manual process fallback required → data exposure risk assessment",
+        "keyTTPs": [
+            "T1486 — Data Encrypted for Impact (at vendor)",
+            "T1199 — Trusted Relationship (supply chain / SaaS dependency)",
+            "T1078.004 — Valid Accounts: Cloud Accounts",
+            "T1485 — Data Destruction (loss of access to time records)"
+        ],
+        "simulationContext": "Large healthcare system with 4,200 employees. Payroll, time tracking, and scheduling all managed through a third-party SaaS platform (private cloud deployment). No local copy of recent time records. Collective bargaining agreements require on-time payroll. HR team has no manual payroll process documented. IT has no SLA data for the vendor's recovery timeline.",
+        "decisionTree": [
+            {
+                "stageId": "s0_vendor_triage",
+                "irPhase": "Detection & Analysis",
+                "prompt": "The vendor's status page has been blank for 3 hours. Social media shows other customers reporting the same outage globally. A security researcher tweets: 'Ransomware group claims to have hit [workforce management vendor] — infrastructure down.' You have no formal breach notification from the vendor yet. What is your first action as the customer's IR analyst?",
+                "analystContext": "Your organisation's contract with the vendor includes a 4-hour breach notification SLA. That clock has not started — you have received no official communication. Your data in the platform includes: employee names, SSNs, bank account routing numbers for direct deposit, medical leave records.",
+                "networkContext": "The SaaS platform is cloud-hosted — your network is not involved. All connectivity is HTTPS API calls from HR applications to vendor endpoints. No direct network access to investigate the vendor environment.",
+                "endpointContext": "HR workstations use a browser-based client — no local data caching. The vendor's mobile app is also down. Last successful API sync pulled time records 3 hours ago. Payroll processing requires the vendor system or a manual equivalent.",
+                "irLeadContext": "Escalation required: HR director, CFO (payroll risk), Legal (breach notification obligations as data controller), and Payroll team lead for manual process discussion. This is a third-party incident — your incident response is about managing impact, not investigating the attacker.",
+                "options": [
+                    {
+                        "actionText": "Formally invoke the vendor's breach notification SLA in writing, activate your own incident response process, and begin parallel-pathing manual payroll preparation",
+                        "isCorrect": True,
+                        "consequence": "Vendor SLA invoked — creates contractual obligation and timestamp. IR process active. Manual payroll team assembles using last 3-hour-old time records. Both tracks running simultaneously. No single-point-of-failure on vendor recovery.",
+                        "nextStageId": "s1_data_exposure",
+                        "technicalExplanation": "Third-party ransomware affecting a data processor triggers your obligations as data controller — you are responsible for the personal data even though it sits with a vendor. Invoking the SLA in writing starts the contractual clock. Parallel-pathing manual processes is essential — do not assume vendor recovery will meet your payroll deadline. NIST 800-61r2 Section 3.2: detect, analyse, and begin containment simultaneously when scope is unclear."
+                    },
+                    {
+                        "actionText": "Wait for the vendor's official breach notification before taking any internal action — you cannot confirm it is ransomware yet",
+                        "isCorrect": False,
+                        "consequence": "Vendor notification arrives 31 hours later. Payroll deadline is now 3 days away. Manual payroll process has no time to gather the missing time records needed to calculate pay accurately.",
+                        "nextStageId": "s1_data_exposure",
+                        "technicalExplanation": "Waiting for vendor notification before activating your own response is a common but costly mistake in third-party incidents. As the data controller, you have independent obligations to protect employee data and maintain business continuity. The vendor's notification clock is separate from your incident response clock — both must run independently."
+                    },
+                    {
+                        "actionText": "Instruct HR to postpone payroll until the vendor system is restored — ransomware recovery typically takes a few days",
+                        "isCorrect": False,
+                        "consequence": "Payroll postponement announced. Collective bargaining agreement violation triggered. 300 union employees file a formal grievance. Legal costs and employee relations damage exceed the cost of manual payroll.",
+                        "nextStageId": "s1_data_exposure",
+                        "technicalExplanation": "Ransomware recovery for a major SaaS provider can take weeks, not days — the Kronos outage lasted over a month. Assuming short recovery and deferring payroll violates employment law obligations and collective bargaining agreements. Manual payroll processes must be activated immediately when SaaS dependency is unavailable."
+                    },
+                    {
+                        "actionText": "Focus on investigating whether your network was involved in the attack before addressing payroll",
+                        "isCorrect": False,
+                        "consequence": "Network investigation confirms your infrastructure is clean — the attack was entirely within the vendor's environment. Three hours spent on investigation that yielded no actionable findings, with no progress on payroll continuity.",
+                        "nextStageId": "s1_data_exposure",
+                        "technicalExplanation": "In a third-party SaaS ransomware incident, your network infrastructure is almost certainly uninvolved — the attacker targeted the vendor's infrastructure, not yours. Investigating your own network first wastes time needed for business continuity. The priority is: (1) data exposure assessment, (2) operational continuity, (3) contractual obligations — not network forensics on a clean environment."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_data_exposure",
+                "irPhase": "Detection & Analysis",
+                "prompt": "The vendor sends an email: 'We have experienced a security incident affecting our private cloud infrastructure. Customer data may have been impacted. We are working to restore services and will provide updates every 24 hours.' No detail on what data was accessed. Your employees' SSNs, bank routing numbers, and medical leave data are in the platform. What data exposure assessment do you run?",
+                "analystContext": "Your organisation is the data controller for employee PII — you are responsible for breach notification to employees and regulators, regardless of where the data was stored. The vendor is a data processor. If personal data was accessed or encrypted, HIPAA (for medical leave records) and state privacy laws require notification within specific timeframes.",
+                "networkContext": "API access logs from your HR system show the last successful data exchange was 3 hours before the outage. You cannot access the vendor's environment or logs. Your only visibility is your own API call logs — which show no unusual patterns on your end.",
+                "endpointContext": "Last data export from the vendor was 90 days ago (quarterly data extract). You have no real-time copy of employee payroll data. Medical leave records are stored exclusively in the vendor platform — no local backup.",
+                "irLeadContext": "HIPAA breach notification: 60 days from discovery for patient data. State breach notification for SSNs: varies from 30 to 72 hours. The vendor's vague notification does not confirm or deny data theft — but 'may have been impacted' is legally sufficient to start your notification clock in most jurisdictions.",
+                "options": [
+                    {
+                        "actionText": "Treat all categories of employee data in the platform as potentially exposed. Notify Legal and begin preparing employee notification, while requesting a written statement from the vendor confirming what data was accessed.",
+                        "isCorrect": True,
+                        "consequence": "Legal engaged with accurate data inventory. Vendor formally asked for written confirmation of data categories affected. Employee notification preparation begins with correct scope. Regulatory clocks tracked accurately.",
+                        "nextStageId": "s2_manual_fallback",
+                        "technicalExplanation": "When a data processor's environment is encrypted by ransomware, you must assume all data stored there is potentially exposed until the vendor confirms otherwise. Modern ransomware groups commonly exfiltrate before encrypting (double extortion). The absence of confirmation of exfiltration is not confirmation of non-exfiltration. As data controller, you cannot wait for the vendor to investigate — you must prepare notification based on worst-case data inventory."
+                    },
+                    {
+                        "actionText": "Wait for the vendor to complete their forensic investigation before assessing exposure — they have better visibility into what was accessed",
+                        "isCorrect": False,
+                        "consequence": "Vendor forensic investigation takes 3 weeks. Regulatory notification window has expired in 6 of 8 applicable states. Multiple regulatory fines issued for late notification.",
+                        "nextStageId": "s2_manual_fallback",
+                        "technicalExplanation": "Regulatory notification timelines run from your organisation's discovery date — not the vendor's investigation completion date. You discovered the incident today. Waiting for vendor forensics before preparing notifications is a regulatory compliance failure. The data controller has an independent obligation to assess and notify."
+                    },
+                    {
+                        "actionText": "Notify only for medical leave records since those are HIPAA-protected — other employee data (SSNs, bank details) is less sensitive",
+                        "isCorrect": False,
+                        "consequence": "SSN and bank routing data breach notification omitted. State attorneys general in three states issue enforcement actions for failure to notify employees of financial identity theft risk.",
+                        "nextStageId": "s2_manual_fallback",
+                        "technicalExplanation": "SSNs and bank routing numbers are among the highest-risk categories for identity theft and financial fraud. Most US state breach notification laws specifically require notification for SSN exposure within short timeframes (as little as 30 hours in some states). Medical records trigger HIPAA, but financial PII triggers separate and often faster state notification requirements."
+                    },
+                    {
+                        "actionText": "Assess exposure only for executives and high-privilege employees — attackers typically target high-value individuals, not general staff data",
+                        "isCorrect": False,
+                        "consequence": "Breach notification sent only for 12 executive accounts. Subsequent vendor disclosure confirms all 4,200 employee records were in scope. Mass re-notification required. Employee trust severely damaged.",
+                        "nextStageId": "s2_manual_fallback",
+                        "technicalExplanation": "Ransomware groups encrypt entire environments — they do not selectively exfiltrate high-value individuals. All data in the compromised environment must be treated as in-scope for exposure assessment. Targeted notification based on assumed attacker selectivity is incorrect and leads to under-notification."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_manual_fallback",
+                "irPhase": "Containment",
+                "prompt": "Legal engaged. Notification process underway. Immediate problem: payroll is due in 4 days for 4,200 employees. The vendor cannot confirm a restoration timeline. HR has no documented manual payroll process. Last time record export from the vendor is 3 hours old. What is your recommendation for maintaining payroll continuity?",
+                "analystContext": "Options for manual payroll: (1) use the 3-hour-old time records to calculate pay manually in spreadsheets and process via the bank directly. (2) pay all employees a flat estimated amount based on their contracted hours and reconcile later. (3) request an emergency extension from the collective bargaining committee. (4) wait for vendor restoration.",
+                "networkContext": "Direct bank payroll submission is possible — your payroll team has ACH direct deposit access independent of the vendor system. The vendor system was the source of time records, but payment processing was separate.",
+                "endpointContext": "HR team can export the last time records from local browser cache (session data from 3 hours ago). Payroll calculations for 4,200 employees manually would take approximately 40 person-hours with current staff.",
+                "irLeadContext": "Union contracts require timely payment. Delayed payroll constitutes a contract breach. However, most agreements allow good-faith estimates with reconciliation if a genuine system failure prevents exact calculation.",
+                "options": [
+                    {
+                        "actionText": "Process payroll using the 3-hour-old time records for accuracy, supplement with manager-confirmed hours for the 3-hour gap, and process via direct bank ACH submission — communicate the plan to employees proactively.",
+                        "isCorrect": True,
+                        "consequence": "Payroll processed on time using manual calculation. 3-hour gap reconciled with manager attestations. Employees paid accurately. Union agreement requirements met. Proactive communication reduces anxiety.",
+                        "nextStageId": "s3_vendor_recovery",
+                        "technicalExplanation": "Manual payroll processes are a standard business continuity expectation for payroll systems. The 3-hour data gap is recoverable via manager attestation — a common payroll fallback mechanism. Direct bank ACH submission is available independently of SaaS platforms. Proactive employee communication about the incident and the manual process prevents speculation and maintains trust. This is the correct BCP (Business Continuity Plan) execution."
+                    },
+                    {
+                        "actionText": "Pay all employees a flat estimated amount based on contracted hours and reconcile differences after system restoration",
+                        "isCorrect": False,
+                        "consequence": "Flat payment issued. Employees with overtime, differentials, and variable-hour contracts receive incorrect amounts. 340 under-payments trigger union grievances. Reconciliation process takes 6 weeks and costs more than the manual calculation would have.",
+                        "nextStageId": "s3_vendor_recovery",
+                        "technicalExplanation": "Flat estimates are appropriate only when actual time data is completely unavailable. With 3-hour-old records and manager attestation available for the gap, a more accurate calculation is feasible. Flat estimates create systematic errors for variable-pay employees (overtime, on-call differentials, contractors) that are time-consuming to correct."
+                    },
+                    {
+                        "actionText": "Wait for vendor restoration before processing payroll — missing the deadline is better than processing inaccurate payments",
+                        "isCorrect": False,
+                        "consequence": "Payroll delayed. Day 5: vendor still offline. Day 12: vendor still offline. Payroll now 8 days late. Legal action initiated by union representatives. Emergency court order requires immediate payment.",
+                        "nextStageId": "s3_vendor_recovery",
+                        "failBranchStageId": "s_payroll_crisis",
+                        "technicalExplanation": "Major SaaS outages caused by ransomware can last weeks to months. The Kronos outage lasted over a month for many customers. Waiting for restoration as a payroll strategy assumes a recovery timeline that may not materialise. Business continuity planning requires manual fallback capability independent of SaaS vendor availability."
+                    },
+                    {
+                        "actionText": "Ask employees to self-report their hours via email so HR can calculate payroll manually",
+                        "isCorrect": False,
+                        "consequence": "Email request sent. 4,200 employees respond with varying completeness. Duplicate entries, formatting inconsistencies, and timezone errors create a data quality problem worse than the original gap. Payroll delayed by 2 additional days to reconcile.",
+                        "nextStageId": "s3_vendor_recovery",
+                        "technicalExplanation": "Self-reported time data from employees is inherently unaudited and inconsistent at scale. Manager-attested hours (top-down) are the correct fallback — managers approve timesheets and have the authority and context to confirm hours worked. Employee self-report (bottom-up) without manager validation creates a reconciliation problem that exceeds the original data gap."
+                    }
+                ]
+            },
+            {
+                "stageId": "s3_vendor_recovery",
+                "irPhase": "Eradication & Recovery",
+                "prompt": "Payroll processed successfully. It is now Day 14. The vendor sends an update: 'We have restored services for 60% of customers and expect full restoration within 7 more days. We can confirm that customer data was encrypted but we have no evidence of exfiltration.' No forensic report has been provided. How do you manage the return to vendor services?",
+                "analystContext": "Key questions before returning to the vendor: (1) What controls has the vendor implemented to prevent recurrence? (2) Is 'no evidence of exfiltration' a confirmed forensic finding or absence of evidence? (3) Does your organisation still trust the vendor with sensitive HR data? (4) What contractual remedies are available?",
+                "networkContext": "The vendor is restoring services from backup. They have not disclosed the initial attack vector, the extent of compromise, or what security improvements have been made. Their SOC 2 Type II certification was valid at the time of the incident.",
+                "endpointContext": "During the 14-day outage your HR team successfully ran manual processes. They have now documented a manual payroll fallback procedure that did not exist before the incident. This institutional knowledge is valuable regardless of vendor recovery.",
+                "irLeadContext": "Contract review: the vendor's SLA includes 99.5% uptime guarantee. A 14+ day outage is a material SLA breach. Legal has identified a termination-for-cause clause and a right to audit the vendor's security controls. The vendor relationship team is pushing to resume normal operations quickly.",
+                "options": [
+                    {
+                        "actionText": "Before resuming full vendor access: require a written forensic attestation on exfiltration, a root cause analysis, and a list of remediated controls. Activate the right-to-audit clause. Retain the manual payroll process as documented fallback.",
+                        "isCorrect": True,
+                        "consequence": "Vendor provides forensic attestation, RCA, and control remediation list. Audit scheduled. Manual process documentation retained as BCP asset. Vendor relationship continues on an improved security footing.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Returning to a vendor after a major security incident without requiring evidence of remediation normalises poor security practices and leaves your organisation exposed to the same risk. The right-to-audit clause is specifically designed for this situation. 'No evidence of exfiltration' without a forensic report from a named third-party IR firm is not a security assurance — it is an absence of evidence. Documenting the manual fallback process is a genuine resilience improvement from the incident."
+                    },
+                    {
+                        "actionText": "Resume normal vendor operations immediately — the vendor's SOC 2 certification was valid and they have restored services",
+                        "isCorrect": False,
+                        "consequence": "Normal operations resumed. Three months later: ransomware group publishes a data sample on their leak site including employee SSNs from your organisation. The exfiltration was real — the vendor's 'no evidence' statement was based on incomplete forensics.",
+                        "nextStageId": None,
+                        "technicalExplanation": "SOC 2 certification validates a point-in-time security posture — it does not guarantee ransomware resistance or that the vendor's investigation was complete. 'No evidence of exfiltration' based on internal investigation is not equivalent to a forensically-confirmed finding. Double extortion groups frequently wait weeks before publishing stolen data. Resuming without additional assurances accepts residual risk of a data publication event."
+                    },
+                    {
+                        "actionText": "Terminate the vendor contract immediately for SLA breach and migrate to a different provider",
+                        "isCorrect": False,
+                        "consequence": "Termination letter sent. Vendor disputes termination, citing force majeure clause in the contract. Legal dispute begins. Migration to a new provider takes 9 months. During that time you are running entirely on manual processes.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Immediate contract termination without completing due diligence (forensic attestation, root cause) may be premature and legally contested. Force majeure clauses in SaaS contracts sometimes cover cyberattacks — this is a common contractual dispute point. A structured remediation-first approach with a defined timeline and contractual audit rights is often more effective than immediate termination."
+                    },
+                    {
+                        "actionText": "Accept the vendor's 'no evidence of exfiltration' statement at face value and cancel the employee breach notification process",
+                        "isCorrect": False,
+                        "consequence": "Breach notification cancelled. Employee SSNs and bank routing data were in the encrypted environment. Regulatory investigation later finds the cancellation was premature. Penalties issued for failure to notify.",
+                        "nextStageId": None,
+                        "technicalExplanation": "A vendor's internal statement of 'no evidence of exfiltration' does not meet the legal standard for breach notification exemption in most jurisdictions. The exemption typically requires a forensic determination that the data was not accessed — not simply that no evidence of access was found. Given that ransomware groups routinely exfiltrate before encrypting and the vendor had a weeks-long dwell period, the notification process should continue until forensic evidence from a qualified third-party IR firm confirms no exfiltration."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_payroll_crisis",
+                "irPhase": "Eradication & Recovery",
+                "prompt": "CRISIS: It is Day 8. Payroll is 4 days overdue for 4,200 employees. The vendor is still offline with no confirmed recovery date. Your employees are sharing social media posts about not being paid. The union has filed a formal grievance and is threatening a work stoppage. HR and Legal are in emergency session. You must advise on immediate remediation of the payroll failure while the vendor is still down.",
+                "analystContext": "At Day 8 you have: time records from Day 1 (the 3-hour-old export), manager attestations that can cover the gap, and direct bank ACH capability that was always available. The manual payroll capability existed throughout — it was not activated because the team was waiting for vendor restoration.",
+                "networkContext": "Bank ACH system is fully operational and independent of the vendor. Processing payroll via direct ACH requires: employee names, bank routing/account numbers (held in your HR system separately), and gross pay calculations (from time records + pay rates held in your HR system).",
+                "endpointContext": "Employee bank details are stored in your local HR system — separate from the vendor platform. Pay rates are in your HRIS. Time records from Day 1 are cached. The only missing data is 8 days of time records — these require manager attestation.",
+                "options": [
+                    {
+                        "actionText": "Emergency activate manual payroll immediately: distribute time attestation forms to all managers (4-hour turnaround), calculate pay using local HRIS data, and process ACH payment today — notify employees of the payment with an apology for the delay",
+                        "isCorrect": True,
+                        "consequence": "Emergency payroll processed within 10 hours. Employees paid the same day. Union withdraws grievance. Work stoppage avoided. Management demonstrates decisive response. Incident post-mortem includes mandatory BCP documentation.",
+                        "nextStageId": None,
+                        "technicalExplanation": "All the technical capabilities to process manual payroll existed on Day 1 and remained available throughout. Manager attestation for 8 days of time records is operationally feasible within hours at scale using digital forms. Bank routing and account numbers are held in your HRIS. This crisis was an organisational failure — not a technical impossibility. BCP plans must be tested and activated without waiting for vendor recovery."
+                    },
+                    {
+                        "actionText": "Issue interest-bearing advances to all employees and reconcile when the vendor restores",
+                        "isCorrect": False,
+                        "consequence": "Advance mechanism requires board approval (takes 3 days) and payroll system access (the vendor system that is down). Advance cannot be processed. Day 11: union files injunction.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Advance payment mechanisms typically require the same payroll infrastructure that is unavailable. More critically, this approach still delays payment rather than solving it. The correct response is to activate the manual payroll capability that exists independently of the vendor — advances are a workaround that avoids the real solution."
+                    },
+                    {
+                        "actionText": "Escalate to the CEO to pressure the vendor into prioritising your restoration — you are a major customer",
+                        "isCorrect": False,
+                        "consequence": "CEO calls the vendor. Vendor confirms your organisation is already in the priority restoration queue. Restoration still 7 days away. Employees still unpaid. Escalation produced no material change to timeline.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Vendor restoration timeline is determined by the technical complexity of their recovery — not by customer escalation. Waiting for the vendor while the manual payroll capability sits unused is the organisational failure here. Escalation to the vendor is appropriate for SLA management and contractual remedies — it is not a payroll continuity strategy."
+                    },
+                    {
+                        "actionText": "Request that employees self-fund until restoration and guarantee reimbursement with interest",
+                        "isCorrect": False,
+                        "consequence": "Request issued. Multiple employees cannot self-fund rent, mortgage, and essential expenses for an unknown period. Medical staff begin calling in sick. Hospital operations impacted. Labour board complaint filed.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Requiring employees to self-fund due to an employer's operational failure is not a viable business continuity strategy and may constitute a wage and hour violation in most jurisdictions. The employer has an unconditional obligation to pay wages on schedule — this obligation does not pause because of a vendor's ransomware incident."
+                    }
+                ]
+            }
+        ],
+        "referenceLinks": [
+            "https://www.cisa.gov/stopransomware/ransomware-guide",
+            "https://attack.mitre.org/techniques/T1199/",
+            "https://www.hhs.gov/hipaa/for-professionals/breach-notification/index.html",
+            "https://www.nist.gov/publications/computer-security-incident-handling-guide"
+        ]
+    }
+})
+
+SCENARIOS.append({
+    "name": "Operation: Cold Chain",
+    "description": "REvil ransomware encrypts the IT systems of a major food processing operation across multiple continents. As IR lead, navigate the unique challenge of IT/OT boundary decisions, supply chain pressure, and a ransom payment debate while processing plants stand idle.",
+    "initial_prompt": "You are the IR Lead at a global food processing conglomerate. 04:30 — automated alert: 'Endpoint protection disabled on 47 Windows servers across AU-01, US-EAST-02, and CA-PLANT-01 segments simultaneously. Mass file rename events detected.' Operations manager calls: 'Processing lines in three countries have lost their scheduling and logistics systems. Plants are idling.' You confirm: ransomware ransom notes appearing across corporate IT. OT plant control systems report nominal — for now. What do you do first?",
+    "difficulty_level": "medium",
+    "max_attempts": 3,
+    "scenario_structure": {
+        "ransomwareFamily": "REvil/Sodinokibi-class (valid account credential access → domain escalation → mass AV/backup disabling → simultaneous multi-continent deployment — targeting food production OT-adjacent infrastructure)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Valid credentials (likely credential stuffing or phishing) → domain admin escalation → disable AV/EDR across all managed endpoints → VSS deletion → REvil deployed via PsExec/GPO simultaneously across AU/US/CA server infrastructure → IT/OT boundary tested",
+        "keyTTPs": [
+            "T1078 — Valid Accounts (credential access, initial vector)",
+            "T1562.001 — Impair Defenses: Disable or Modify Tools (AV/EDR killed before encryption)",
+            "T1490 — Inhibit System Recovery (VSS deletion, backup service stops)",
+            "T1486 — Data Encrypted for Impact",
+            "T1489 — Service Stop (processing scheduling systems)",
+            "T1021.002 — Remote Services: SMB/Windows Admin Shares (lateral movement)"
+        ],
+        "simulationContext": "Global food processing operation — cattle, poultry, and pork processing. IT systems: corporate Windows domain, processing scheduling software, logistics and dispatch, cold chain monitoring. OT systems: plant floor controls (PLCs, HMIs, historian servers) on separate but bridged network. IT compromise confirmed across 47 servers in 3 countries. OT systems currently nominal. Food safety systems are OT-dependent.",
+        "decisionTree": [
+            {
+                "stageId": "s0_ot_boundary",
+                "irPhase": "Containment",
+                "prompt": "Ransomware confirmed on 47 IT servers across 3 countries. OT systems (plant floor PLCs, HMIs, cold chain monitoring) are currently operational and showing no signs of compromise. However, your network diagram shows a historian server (OSIsoft PI) that bridges IT and OT — it has both a corporate network interface and an OT network interface. This historian server appears on your infected server list. What is your immediate containment decision regarding the IT/OT boundary?",
+                "analystContext": "The historian server aggregates process data from OT to IT for reporting. It sits in both networks simultaneously. If ransomware executes on the historian's OT interface, it has a path to plant control systems. However, cutting all IT/OT connectivity will also blind the plant operations team — they use IT-side dashboards to monitor production.",
+                "networkContext": "Network diagram: Corporate LAN (infected) → Historian server (PI, dual-homed — INFECTED) → OT network (plant PLCs, HMIs — currently nominal). The historian's OT NIC is still active. Firewall between IT and OT has an allow rule for historian traffic on ports 5450 and 5461 (PI protocol).",
+                "endpointContext": "Historian server (HIST-PLANT-01): Ransomware ransom note found. File rename events detected on the C: drive (corporate data partition). D: drive (PI archive partition) — file system intact so far. OT NIC (192.168.100.x) still active. PI data collection still running.",
+                "irLeadContext": "Plant operations manager on call: 'If you cut OT connectivity we lose real-time production visibility. We can run manually for a few hours but food safety monitoring (cold chain temperatures) is on the IT dashboard.' Food safety is a regulatory obligation — cold chain temperature logging must not be interrupted.",
+                "options": [
+                    {
+                        "actionText": "Immediately isolate the historian server from BOTH networks. Brief plant operations on manual cold chain temperature logging. Accept temporary loss of IT dashboards to protect OT from a potential ransomware jump.",
+                        "isCorrect": True,
+                        "consequence": "Historian isolated. OT network protected. Plant operations switches to manual cold chain logging (paper-based, 15-minute intervals per food safety protocol). No ransomware reaches OT systems. Food safety maintained with manual controls.",
+                        "nextStageId": "s1_scope_assessment",
+                        "technicalExplanation": "A dual-homed historian server that is confirmed infected is the highest-risk IT/OT bridge point. Ransomware executing on that server's OT interface could reach PLCs and HMIs — potentially causing physical consequences (uncontrolled temperature changes, line stop/start, safety system interference). Manual cold chain logging is a defined fallback in food safety protocols. The temporary loss of IT dashboards is operationally painful but recoverable. A ransomware jump to OT is potentially catastrophic and irreversible during an active incident."
+                    },
+                    {
+                        "actionText": "Keep the historian running to maintain food safety monitoring — disconnect only its corporate network interface but leave the OT interface active",
+                        "isCorrect": False,
+                        "consequence": "Corporate NIC disconnected. But ransomware on the historian's C: drive continues executing. It encrypts the D: drive (PI archive) and then scans the OT network via the still-active OT NIC. Two HMI workstations on the OT network are reached via the PI protocol port and encrypted.",
+                        "nextStageId": "s1_scope_assessment",
+                        "failBranchStageId": "s_ot_compromise",
+                        "technicalExplanation": "Disconnecting only the corporate NIC of an infected dual-homed server leaves the OT interface active — and the ransomware executable is still running on that machine. Modern ransomware performs network scanning on all active interfaces. The PI protocol ports (5450/5461) provide an already-trusted path into the OT network. Half-isolation of a confirmed infected system is not containment."
+                    },
+                    {
+                        "actionText": "Do not disconnect the historian — focus on containing the IT ransomware spread and address OT risk after IT is contained",
+                        "isCorrect": False,
+                        "consequence": "IT containment takes 4 hours. During that time the historian's ransomware scans the OT network and encrypts 6 HMI workstations and the plant supervisory control server. Processing lines must be manually stopped for safety. Full plant shutdown.",
+                        "nextStageId": "s1_scope_assessment",
+                        "technicalExplanation": "Ransomware does not wait for IT containment to complete. An infected dual-homed server will begin scanning its available network interfaces immediately. Treating IT and OT as sequential priorities — rather than simultaneous — allows the OT infection to occur during the IT response window. OT boundary decisions must be made before, not after, IT containment."
+                    },
+                    {
+                        "actionText": "Alert the OT team to watch for signs of compromise and respond immediately if they see unusual behaviour on plant systems",
+                        "isCorrect": False,
+                        "consequence": "OT team on alert. Ransomware traverses the historian's OT interface at 04:52 — 22 minutes after initial detection. By the time the OT team identifies unusual HMI behaviour, 4 plant control workstations are encrypted. Plant safety system triggers an emergency stop.",
+                        "nextStageId": "s1_scope_assessment",
+                        "technicalExplanation": "Reactive OT monitoring is not containment — it is late detection. OT environments often have limited telemetry and slow alert response compared to IT. More critically, ransomware propagation takes seconds to minutes. An alert posture ('watch and report') against a confirmed infected IT/OT bridge server provides no real protection."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_scope_assessment",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Historian isolated. OT protected. Now you need to understand the full scope of the IT compromise. SIEM shows: 47 servers encrypted across 3 countries simultaneously, AV disabled on all 47 before encryption, VSS shadows deleted, rclone.exe executed on a corporate file server 2 hours before encryption. The attacker was clearly in the environment for an extended period before deploying ransomware. What is your scope assessment focus?",
+                "analystContext": "rclone.exe execution 2 hours before deployment, combined with simultaneous multi-continent deployment, indicates: (1) long dwell time with AD compromise, (2) data was staged and exfiltrated before encryption, (3) deployment was coordinated and planned — not automated worm spread. This is a 'Big Game Hunting' pattern — human operators, not automated malware.",
+                "networkContext": "SIEM HTTPS egress logs: 340GB outbound to storage.bunnycdn.com between 01:45 and 03:58 (2 hours before encryption). rclone.exe source IP: CORPFILE-01 (a corporate file server in the US segment). File access audit logs show bulk reads from \\\\CORPFILE-01\\Finance, \\\\CORPFILE-01\\Operations, and \\\\CORPFILE-01\\HR over the previous 6 hours.",
+                "endpointContext": "Domain controller event logs: Event 4672 (special privilege logon) for a service account (svc_backup) not typically used for interactive logons at 21:30 yesterday. This account has domain admin privileges. It was used to disable AV via WMIC across all 47 servers at 03:55 — 35 minutes before encryption started.",
+                "irLeadContext": "The svc_backup account is the attacker's access vehicle. Understanding when it was compromised and what it accessed determines the full scope of the breach — including any data exfiltrated. All domain admin actions by this account in the past 30 days must be audited.",
+                "options": [
+                    {
+                        "actionText": "Audit the full activity of the svc_backup service account over the past 30 days: logon events, file access, remote connections, and any new accounts or GPO changes it made. Treat this account as the attacker's primary access vehicle.",
+                        "isCorrect": True,
+                        "consequence": "Audit reveals: svc_backup first appeared at an unusual logon location 22 days ago. It accessed 6 additional file shares beyond the 3 visible in SIEM. Two new local admin accounts were created by it on 3 servers. Full scope determined in 4 hours.",
+                        "nextStageId": "s2_ransom_decision",
+                        "technicalExplanation": "In Big Game Hunting ransomware operations, the attacker's privileged account is the most forensically valuable artifact. Every action taken by that account maps the attacker's dwell period, data access, persistence mechanisms, and the full blast radius. svc_backup having domain admin privileges means it could have accessed any system in the domain — the 47 servers are the encryption scope, not necessarily the full access scope."
+                    },
+                    {
+                        "actionText": "Focus scope assessment on the 47 encrypted servers only — those are the confirmed impact, and the business needs a recovery timeline immediately",
+                        "isCorrect": False,
+                        "consequence": "Recovery planned for 47 servers. Two additional servers not in the encrypted list had been used as staging points and have persistent backdoors installed. These are missed and not cleaned. Second-stage attack launched 3 weeks later.",
+                        "nextStageId": "s2_ransom_decision",
+                        "technicalExplanation": "Scoping to encrypted servers only conflates the encryption blast radius with the access blast radius. In a planned human-operated ransomware attack, the attacker has typically accessed far more systems than they chose to encrypt — staging servers, lateral movement pivots, and persistence hosts are often deliberately excluded from encryption to preserve attacker access during ransom negotiations."
+                    },
+                    {
+                        "actionText": "Disable the svc_backup account immediately and rotate all domain admin passwords — then assess scope based on what recovery reveals",
+                        "isCorrect": False,
+                        "consequence": "svc_backup disabled. DA passwords rotated. But the audit trail of what svc_backup accessed was not captured before rotation. A Golden Ticket may have been created — without the audit, this cannot be confirmed or denied. Persistence mechanisms on staging servers go uninvestigated.",
+                        "nextStageId": "s2_ransom_decision",
+                        "technicalExplanation": "Account disablement and credential rotation are correct containment steps — but they must follow scope assessment, not precede it. Rotating credentials before auditing activity history destroys the forensic trail needed to understand the full breach scope. Collect and preserve the audit data first, then rotate credentials."
+                    },
+                    {
+                        "actionText": "Collect samples of the ransomware binary from an encrypted server and submit to threat intelligence for attribution — knowing the group helps plan the response",
+                        "isCorrect": False,
+                        "consequence": "Sample submitted. Attribution comes back in 48 hours: REvil variant. This was already strongly suspected from the ransom note format. 48 hours spent on attribution that did not change the response strategy.",
+                        "nextStageId": "s2_ransom_decision",
+                        "technicalExplanation": "Attribution is valuable for regulatory notification and law enforcement engagement — but it rarely changes the immediate incident response actions. Scope assessment (what did they access and when) is operationally more valuable than attribution (who did it) in the first 24 hours. Attribution can run in parallel or after scope assessment — not instead of it."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_ransom_decision",
+                "irPhase": "Containment",
+                "prompt": "Scope confirmed: 47 servers encrypted. 340GB of financial, operational, and HR data exfiltrated. Attacker dwell time: 22 days. Your backup infrastructure is intact — but restoring 47 servers from backup will take an estimated 7-10 days during which all plants remain offline. Processing plant downtime costs the business substantially per day. The executive team asks your IR team: 'Should we pay the ransom to get decryption keys and restore faster?' How do you advise?",
+                "analystContext": "Key factors for the ransom decision: (1) Backup integrity — are backups confirmed clean and restorable? (2) Decryptor reliability — REvil has provided working decryptors in some cases but not all. (3) Data already stolen — payment does not prevent publication of the 340GB. (4) Legal considerations — ransomware payment regulations vary by jurisdiction and sanctioned entity lists must be checked. (5) Recovery timeline — decryptor, if functional, could restore faster than backup.",
+                "networkContext": "Backup server (BACKUP-SRV-01) was not encrypted — it was on an isolated segment. Last verified backup: 36 hours ago. Restoration test of one server from backup: successful in 90 minutes. Extrapolated: 47 servers × 90 min = ~70 hours (3 days with parallel restoration on available infrastructure).",
+                "endpointContext": "The ransom note includes a .onion negotiation URL. Threat intel: this REvil affiliate has provided working decryptors in 6 of 8 known cases. In 2 cases the decryptor corrupted files. Decryptor-based recovery for 47 servers estimated at 12-18 hours if the key works.",
+                "irLeadContext": "Board-level decision. You are advising, not deciding. Your role: provide accurate technical input on recovery timelines, decryptor reliability, legal obligations, and what payment does/does not buy. The board will make the final call.",
+                "options": [
+                    {
+                        "actionText": "Advise: begin backup restoration in parallel with an OFAC sanctions check. Payment should only be considered if backup restoration fails or takes materially longer than estimated. Paying does not address the exfiltrated data and carries legal risk.",
+                        "isCorrect": True,
+                        "consequence": "Backup restoration begins. OFAC check confirms no sanction issues with this affiliate. Restoration completes in 68 hours — within estimate. No payment made. Exfiltration addressed via regulatory notification. Data not published on leak site (common when victim does not engage in ransom negotiations).",
+                        "nextStageId": "s3_recovery_ops",
+                        "technicalExplanation": "Backup restoration is the preferred recovery path when backups are confirmed intact and restoration is feasible within business tolerance. Ransom payment: (1) does not guarantee a working decryptor, (2) does not prevent data publication, (3) funds criminal operations, (4) may violate OFAC sanctions if the group is on a sanctions list. Starting restoration immediately while conducting an OFAC check is the correct dual-track approach. Payment is a last resort when backup recovery is not viable."
+                    },
+                    {
+                        "actionText": "Recommend paying the ransom immediately — 12-18 hours vs 70 hours recovery is a significant operational difference that justifies the cost",
+                        "isCorrect": False,
+                        "consequence": "Ransom paid. Decryptor received. Decryptor works on 31 of 47 servers. On 16 servers it corrupts files — those must be restored from backup anyway. Total recovery time: 19 hours for 31 servers + 70 hours for the remaining 16. Longer overall, and ransom paid.",
+                        "nextStageId": "s3_recovery_ops",
+                        "technicalExplanation": "Decryptors from ransomware groups do not have 100% reliability — they are often developed hastily and may be affiliate-variant specific. Even when provided, they frequently fail on some file types or server configurations. In this scenario, a 75% success rate (31/47) means paying ransom did not avoid backup restoration — it delayed it. When backups are confirmed intact, they are always the more reliable recovery path."
+                    },
+                    {
+                        "actionText": "Do not pay and do not begin restoration — wait for law enforcement to provide decryption assistance before acting",
+                        "isCorrect": False,
+                        "consequence": "Law enforcement contacted. Advised no decryption assistance is available for this variant. Plants remain offline for 5 additional days while waiting. Total downtime extended significantly. Business loss multiplied.",
+                        "nextStageId": "s3_recovery_ops",
+                        "technicalExplanation": "Law enforcement decryption assistance for active ransomware variants is rare and typically only available months or years after a campaign when law enforcement seizes infrastructure. For active incidents, law enforcement is valuable for reporting, intelligence sharing, and potential prosecution — not as a recovery mechanism. Backup restoration is the primary recovery path for active incidents."
+                    },
+                    {
+                        "actionText": "Pay the ransom and also begin backup restoration simultaneously — hedging both bets maximises recovery speed",
+                        "isCorrect": False,
+                        "consequence": "Both paths begin. Decryptor received and begins running. Backup restoration also running. Decryptor corrupts file systems on 8 servers where restoration was already in progress — requires those servers to be re-restored from backup. Parallel paths created conflict. Cost: ransom payment + extra recovery time.",
+                        "nextStageId": "s3_recovery_ops",
+                        "technicalExplanation": "Running decryptor and backup restoration simultaneously on the same servers creates a conflict — if the decryptor modifies files while backup restoration is writing to the same disk, the result is data corruption. These paths must be sequential (try one, then the other if it fails) or applied to different server sets. Paying for a decryptor while also having verified backups is rarely the optimal economic decision."
+                    }
+                ]
+            },
+            {
+                "stageId": "s3_recovery_ops",
+                "irPhase": "Eradication & Recovery",
+                "prompt": "Restoration from backup approved and underway. 47 servers in queue. Processing plants can partially resume using manual processes for scheduling. You receive a notification from your threat intelligence feed: 'REvil leak site has posted a teaser of data from a food processing conglomerate — 5 sample files including what appear to be employee salary records.' The data is from your organisation. The group is threatening to publish all 340GB in 72 hours unless payment is made. How do you advise the executive team?",
+                "analystContext": "Double extortion (T1657) — the data exfiltration threat arrives AFTER encryption is already being remediated. This is the second extortion lever. The published teaser is confirmation that the 340GB exfiltration was real. The 72-hour countdown is a pressure tactic.",
+                "networkContext": "The 5 sample files are publicly visible on the Tor-accessible leak site. They include: 3 employee salary records, 1 internal budget spreadsheet, 1 supplier contract. No customer personal data is visible in the sample — but 340GB of unknown data composition remains unpublished.",
+                "endpointContext": "Forensic review of rclone.exe activity confirms the 340GB was pulled from: Finance share (bulk financial data), HR share (employee records including salaries), and Contracts share (supplier agreements). No confirmed customer personal data in scope based on share structure.",
+                "irLeadContext": "Two separate questions for leadership: (1) Pay to prevent publication? (2) Notify affected employees now or wait? These are independent decisions. Paying does not guarantee non-publication — REvil affiliates have published data after payment in multiple documented cases.",
+                "options": [
+                    {
+                        "actionText": "Advise against payment for data suppression — document the publication risk for regulators, notify affected employees of the salary record exposure now, and engage legal counsel on defamation and copyright claims against the leak site.",
+                        "isCorrect": True,
+                        "consequence": "No payment. Employees notified of salary record exposure. Legal counsel engaged. Data published 72 hours later — only the categories already identified in forensics (no customer data). Regulatory disclosure accurate and timely. No second ransom payment.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Payment for data suppression in double extortion is unreliable — threat actors frequently publish data after payment (having received the payment, they have no further incentive to honour non-publication). More importantly, it incentivises repeat attacks on the same target. Notifying employees promptly based on confirmed forensic scope is the correct data controller obligation. Legal action against leak sites is available in some jurisdictions and can provide injunctive relief."
+                    },
+                    {
+                        "actionText": "Pay the additional extortion demand to prevent data publication — the business relationship damage from published supplier contracts outweighs the payment cost",
+                        "isCorrect": False,
+                        "consequence": "Payment made. Attacker acknowledges payment. Data published 3 days later anyway — a common outcome in REvil double extortion cases. Twice the financial loss, same data exposure.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Double extortion payment for non-publication has a poor track record. Once data is in an attacker's hands, there is no technical mechanism preventing them from re-publishing later, selling to another party, or using the data themselves. Payment creates a precedent and incentivises the same group to target the same organisation again."
+                    },
+                    {
+                        "actionText": "Wait the 72 hours to see if the group actually publishes — their threat may be a bluff to generate a ransom payment",
+                        "isCorrect": False,
+                        "consequence": "Waited. Data published in full at the 72-hour mark. Employee salary records, budget data, and supplier contracts now publicly accessible. Notification to employees arrives after publication — employees learn about the breach from media before being told by their employer.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Waiting on a double extortion deadline to assess whether the threat is real is a high-risk strategy. You already have forensic evidence that 340GB was exfiltrated — the leak site teaser confirms the data is in attacker hands. The threat is not a bluff. Notification of affected individuals should not be contingent on the attacker's publication decision — the breach occurred when the data was stolen, not when it was published."
+                    },
+                    {
+                        "actionText": "Notify only the employees whose records appear in the 5 published sample files — the remainder of the 340GB may not contain personal data",
+                        "isCorrect": False,
+                        "consequence": "Partial notification sent to 3 employees. Full data published. 4,800 additional employee records exposed. Regulatory investigation: why were only 3 people notified when the HR share containing all employee records was confirmed exfiltrated?",
+                        "nextStageId": None,
+                        "technicalExplanation": "Scoping notification to only the confirmed-published sample is incorrect. The forensic evidence confirms the entire HR share was exfiltrated — the scope of the breach is the entire HR share contents, not just the 5 files used as a teaser. Notification scope must be based on what was exfiltrated (determined by forensics and rclone activity logs), not on what has been published."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_ot_compromise",
+                "irPhase": "Containment",
+                "prompt": "CRITICAL: Ransomware has jumped from the historian server to the OT network. Two HMI workstations in the AU-01 plant are encrypted. The plant supervisory control server (SCADA) shows unusual process variable changes — refrigeration setpoints are being modified. Food safety alert: cold chain temperature in 3 holding areas is rising. Live animals in pre-processing areas must be managed safely. Plant safety engineer on the phone: 'Should we do an emergency shutdown?' You have 8 minutes before food safety thresholds are breached. Advise immediately.",
+                "analystContext": "This is an OT safety emergency, not just an IT security incident. Ransomware modifying SCADA setpoints is an active physical safety threat. Food held above safe temperatures becomes a regulatory and public health issue within 30-40 minutes. The plant safety engineer has authority to initiate emergency shutdown — your role is to advise, not override.",
+                "networkContext": "OT network is now partially compromised. SCADA server connection to HMI workstations shows anomalous commands. The ransomware is using legitimate SCADA protocol (Modbus/OPC-UA) to send setpoint changes — it has access to the engineering workstation credentials.",
+                "endpointContext": "Affected OT assets: 2 HMI workstations (encrypted, offline), SCADA server (accessible but receiving anomalous commands), 3 refrigeration PLCs (receiving incorrect setpoints from SCADA). Safety PLCs (emergency shutdown system) appear nominal — they operate on a separate hardwired safety circuit.",
+                "options": [
+                    {
+                        "actionText": "Advise the plant safety engineer to initiate emergency shutdown of the affected process areas immediately. Disconnect SCADA server from OT network to stop the anomalous setpoint commands. Preserve food safety and worker safety above all other considerations.",
+                        "isCorrect": True,
+                        "consequence": "Emergency shutdown initiated in 3 minutes. Refrigeration areas isolated. Food safety maintained — no product lost due to temperature exceedance. SCADA server disconnected — anomalous commands stop. OT network isolated for forensic assessment. Plant shut down safely.",
+                        "nextStageId": None,
+                        "technicalExplanation": "When ransomware reaches OT and begins modifying process control setpoints, the incident crosses from a cybersecurity incident to an industrial safety emergency. Safety of personnel and food safety compliance supersede any cybersecurity or business continuity consideration. The correct decision is always to prioritise safe shutdown when safety systems are being manipulated. The safety PLCs operating on a hardwired circuit provide a safe path to shutdown independent of the compromised SCADA."
+                    },
+                    {
+                        "actionText": "Try to isolate only the compromised HMI workstations and monitor SCADA without shutting down — a full shutdown costs hours of production",
+                        "isCorrect": False,
+                        "consequence": "HMIs isolated. But the anomalous setpoint commands are originating from the SCADA server, not the HMIs. Refrigeration continues rising. At minute 12: cold chain temperature exceeds safety threshold. 4 tonnes of product must be destroyed. Regulatory food safety notification required.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Isolating endpoints without addressing the source of the anomalous commands (the compromised SCADA server) does not stop the safety threat. In this scenario, the HMIs are already encrypted and offline — the active threat is the SCADA server sending incorrect setpoints to refrigeration PLCs. Partial isolation that misidentifies the active threat source allows the safety condition to continue developing."
+                    },
+                    {
+                        "actionText": "Manually override the refrigeration setpoints from a non-compromised engineering workstation to counteract the ransomware's changes",
+                        "isCorrect": False,
+                        "consequence": "Override attempted. The engineering workstation is also on the OT network — it receives anomalous commands and locks up within 2 minutes. Manual override fails. Temperature continues rising. 8 minutes expired. Food safety breach occurs.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Attempting manual override on a network with an active threat actor sending commands is a race you are likely to lose — especially when the attacker has compromised the authentication layer (SCADA engineering credentials). Emergency shutdown via hardwired safety circuits is the only guarantee — it bypasses all network-dependent control paths."
+                    },
+                    {
+                        "actionText": "Call the SCADA vendor's emergency support line for guidance before taking any action",
+                        "isCorrect": False,
+                        "consequence": "Vendor called. Queued for 6 minutes. Food safety threshold breached at minute 8 while waiting. 4 tonnes of product destroyed. Vendor eventually advises: initiate emergency shutdown — exactly what the safety engineer was ready to do 8 minutes ago.",
+                        "nextStageId": None,
+                        "technicalExplanation": "In an active OT safety emergency with an 8-minute window, waiting for vendor guidance is not a viable option. Plant safety engineers are trained and authorised for emergency shutdown decisions. The cybersecurity team's role is to advise on the cyber dimension — the safety dimension is the safety engineer's domain. The correct response is to empower the safety engineer to act immediately, not to create an additional approval delay."
+                    }
+                ]
+            }
+        ],
+        "referenceLinks": [
+            "https://www.cisa.gov/sites/default/files/2023-03/aa23-040a_stopransomware_royal_ransomware_0.pdf",
+            "https://attack.mitre.org/techniques/T1562/001/",
+            "https://www.cisa.gov/sites/default/files/publications/cisa-ms-isac_ransomware-guide_508c.pdf",
+            "https://www.nist.gov/system/files/documents/2020/04/07/NISTSP800-82r2.pdf"
+        ]
+    }
+})
+
+SCENARIOS.append({
+    "name": "Operation: Dealer Blackout",
+    "description": "You are the IR Lead at a software-as-a-service provider whose platform manages sales, financing, and service operations for thousands of downstream dealership customers. Ransomware has been deployed across your infrastructure. Every customer is locked out. Navigate the dual pressure of forensic investigation and mass customer impact simultaneously.",
+    "initial_prompt": "You are the IR Lead at a large automotive software platform provider. 02:17 — NOC alert: 'Mass service degradation across all data center regions. Customer API error rates 98%. Authentication services offline.' Your on-call engineer confirms: ransomware notes appearing on application servers across all regions simultaneously. You estimate 15,000+ downstream dealership customers are currently locked out of their sales, service, and finance systems. What is your first decision?",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "BlackSuit/ransomware-class (social engineering initial access → credential harvesting → multi-stage lateral movement across MSP/SaaS infrastructure → simultaneous multi-region deployment affecting downstream customers — Big Game Hunting pattern)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Social engineering of IT helpdesk (vishing) → MFA bypass via helpdesk policy exception → privileged account access → lateral movement across cloud and on-premises hybrid infrastructure → AV/EDR disabled → ransom ware deployed simultaneously across all regions via automation",
+        "keyTTPs": [
+            "T1566.004 — Phishing: Spearphishing Voice (vishing helpdesk)",
+            "T1078 — Valid Accounts (helpdesk-provisioned MFA bypass)",
+            "T1021 — Remote Services (lateral movement)",
+            "T1562.001 — Impair Defenses (AV/EDR disabled pre-deployment)",
+            "T1486 — Data Encrypted for Impact",
+            "T1657 — Financial Theft / Double Extortion",
+            "T1199 — Trusted Relationship (downstream customer impact)"
+        ],
+        "simulationContext": "SaaS platform provider serving 15,000+ automotive dealerships. Services: inventory management, sales deal processing, F&I (finance and insurance), service scheduling, parts ordering. Multi-region cloud infrastructure (3 US regions). Customer data includes: vehicle sales records, customer PII (DL, SSN for financing), financial transaction records. 48-hour incident response window before media begins covering the outage.",
+        "decisionTree": [
+            {
+                "stageId": "s0_crisis_triage",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Ransomware confirmed across all data center regions. 15,000+ dealer customers are offline. Your CTO wants to know: do you shut down all remaining services (potentially protecting some data still being encrypted) or keep partial services running (maintaining some customer access)? SIEM shows encryption is 60% complete across your server estate — roughly 40% of servers are still being actively encrypted right now. Simultaneously, your communications director asks: 'Should we post a status update telling customers what is happening?'",
+                "analystContext": "Two simultaneous decisions with conflicting pressures: (1) Technical: shut down vs. partial operation during active encryption. (2) Communications: disclose vs. contain before you know full scope. Both decisions have significant downstream consequences for 15,000 businesses.",
+                "networkContext": "Active encryption telemetry: Regions US-EAST and US-WEST: encryption complete (no running services). Region US-CENTRAL: encryption 40% complete — 60% of servers still operational. Firewall can isolate US-CENTRAL region in 90 seconds. Keeping US-CENTRAL up: maintains partial customer access for ~6,000 customers. Shutting it down: may limit encryption spread but removes last operational region.",
+                "endpointContext": "EDR telemetry (where still running): ransomware binary is RansomwareProcess.exe, self-propagating via WMI lateral movement to reachable hosts. Shutting down US-CENTRAL would stop WMI propagation to any remaining uninfected hosts in that region. However, all encryption-complete regions are already lost.",
+                "irLeadContext": "Communications decision: customers are already calling support lines which are overwhelmed. Social media is already reporting the outage — customers know something is wrong. A non-specific 'we are investigating' message buys time but may accelerate media coverage if it seems evasive. Accurate but limited disclosure now may be better than silence followed by media-broken news.",
+                "options": [
+                    {
+                        "actionText": "Immediately isolate US-CENTRAL region from the other regions AND from customer-facing internet (limiting further encryption spread) while releasing a brief honest status communication: 'We are experiencing a security incident affecting our services. We are working to contain the issue and will provide updates every 2 hours.'",
+                        "isCorrect": True,
+                        "consequence": "US-CENTRAL isolation stops WMI lateral spread — 60% of that region's servers remain unencrypted. Honest status communication reduces frantic support calls, sets customer expectations, and demonstrates transparency. Media coverage frames the incident as 'company disclosed and is responding' rather than 'company concealed.'",
+                        "nextStageId": "s1_customer_notification",
+                        "technicalExplanation": "Isolating the still-active region stops self-propagating ransomware from completing its work — saving ~3,600 servers. This is meaningful both for faster partial recovery and for reduced data loss scope. Transparent communications during a major B2B outage are standard practice and legally advisable — customers have their own regulatory obligations dependent on your platform, and they need factual information to manage their own compliance exposure."
+                    },
+                    {
+                        "actionText": "Keep US-CENTRAL fully operational to maintain maximum customer access — prioritise business continuity over limiting encryption spread",
+                        "isCorrect": False,
+                        "consequence": "US-CENTRAL encryption completes in 47 minutes. All three regions fully encrypted. 100% of customer infrastructure offline. No partial recovery path. Restoration timeline extended by 3 days compared to partial preservation.",
+                        "nextStageId": "s1_customer_notification",
+                        "technicalExplanation": "During active ransomware propagation, maintaining connectivity to enable further spread is not business continuity — it is extending the damage. A partially encrypted region that is isolated preserves those servers for faster recovery. A fully encrypted environment requires rebuilding everything from scratch."
+                    },
+                    {
+                        "actionText": "Say nothing publicly until legal and PR have reviewed all communications — no statement without full executive approval",
+                        "isCorrect": False,
+                        "consequence": "No statement for 6 hours. Multiple automotive industry journalists receive tips from dealer customers. News breaks with headline: 'Major dealer software provider hit by ransomware — refuses to comment.' Narrative framed as concealment. Customer trust collapse accelerates.",
+                        "nextStageId": "s1_customer_notification",
+                        "technicalExplanation": "In a B2B outage of this scale, customers are already aware something is wrong — their businesses are stopped. Silence does not prevent disclosure; it delays your ability to shape the narrative. Legal review of communications is appropriate but should be a parallel fast track (minutes to hours), not a sequential gate that delays all communication."
+                    },
+                    {
+                        "actionText": "Shut down all infrastructure including US-CENTRAL immediately — accept total service loss to prevent any further encryption",
+                        "isCorrect": False,
+                        "consequence": "Full shutdown executed. Encryption of the remaining 60% of US-CENTRAL servers stops mid-process — but the partial encryption leaves many servers in an inconsistent state that requires more forensic work to assess than a clean reimage. Total outage now universal. Recovery timeline same as if full encryption had completed.",
+                        "nextStageId": "s1_customer_notification",
+                        "technicalExplanation": "Shutting down mid-encryption creates partially encrypted servers that are often more complex to assess and restore than fully encrypted ones — the ransomware's VSS deletion and AV-disabling may be partially complete, leaving uncertain system state. Network isolation (maintaining power, cutting network) is superior to power-off for active ransomware — it stops propagation without creating mid-write file system inconsistencies."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_customer_notification",
+                "irPhase": "Containment",
+                "prompt": "US-CENTRAL isolated. Honest status message posted. Customer support lines are overwhelmed — 15,000 dealerships are calling asking for ETAs, manual workarounds, and breach confirmation. Your customer success team is asking: 'Can we tell dealers to just use paper and pen? Some are in the middle of financing a customer's car purchase right now.' Your legal team flags: 'Our customer contracts have a 24-hour data breach notification SLA — when does our clock start?' How do you handle customer-facing communications and operational guidance?",
+                "analystContext": "Customer business continuity is now your problem because your platform failure caused it. Dealers in the middle of financing transactions need specific guidance — not generic 'we are working on it.' The 24-hour SLA clock starts when you have reasonable belief a breach occurred — that is now.",
+                "networkContext": "Customer API is completely down. Customer web portal is down. Dealer customers can still: (1) process cash sales manually, (2) record financing applications on paper for later processing, (3) service appointments can be scheduled manually. What they cannot do without your platform: electronically submit financing to banks, access vehicle history reports, process electronic payments.",
+                "endpointContext": "Your customer success portal (Salesforce) is unaffected — it runs on Salesforce infrastructure, not your own. You can send bulk communications to all 15,000 customer accounts via Salesforce. You have customer-specific data in Salesforce: which customers were mid-transaction when the outage occurred.",
+                "irLeadContext": "Legal position on the 24-hour SLA clock: the contract SLA starts when you have 'reasonable knowledge of a security breach.' The ransom note confirms this was a ransomware attack — that is a security breach. The clock started at 02:17. You have until 02:17 tomorrow to deliver the contractual notification. Customer data exposure scope is not yet confirmed — notification now will be based on 'we have experienced a security incident; your data may be affected.'",
+                "options": [
+                    {
+                        "actionText": "Send a detailed operational guidance bulletin to all 15,000 customers within 2 hours: specific manual workarounds for each affected service type, a confirmed breach notification meeting the 24-hour SLA, and a 2-hour update cadence commitment. Assign customer success reps to the highest-volume customers.",
+                        "isCorrect": True,
+                        "consequence": "Detailed guidance received by all customers. Financing-in-progress dealers use paper applications. Breach notification SLA met. Update cadence builds trust. Large dealership groups (5+ locations) get dedicated rep support. Customer churn risk reduced.",
+                        "nextStageId": "s2_forensic_recovery_balance",
+                        "technicalExplanation": "B2B ransomware incidents affecting downstream customers require two parallel customer communications: (1) operational continuity guidance — specific and actionable, not generic; (2) breach/incident notification — contractually required and legally protective. Generic 'we are working on it' messaging without operational guidance leaves customers unable to manage their own business continuity. Specific guidance (paper financing applications, manual service scheduling) enables customers to continue operating — which reduces reputational and contractual damage."
+                    },
+                    {
+                        "actionText": "Wait until you have confirmed the full scope of data exposure before sending any breach notifications — you do not want to over-notify and create unnecessary alarm",
+                        "isCorrect": False,
+                        "consequence": "24-hour SLA passes without notification. A junior team member, seeing the silence and trying to help, sends a draft notification email to all 15,000 customers without legal review — and the draft contains an unverified claim that all customer data was stolen. Crisis unfolds before containment is complete.",
+                        "nextStageId": "s2_forensic_recovery_balance",
+                        "failBranchStageId": "s_customer_panic",
+                        "technicalExplanation": "B2B breach notification SLAs are contractual obligations with penalties — they are separate from your forensic investigation timeline. 'We experienced a security incident; your data may be affected' is a legally valid and contractually compliant notification even before scope is fully confirmed. Waiting for full scope determination before notifying routinely causes SLA breaches and regulatory violations."
+                    },
+                    {
+                        "actionText": "Tell customers to halt all transactions until services are restored — do not advise manual workarounds because incorrect manual data will cause reconciliation problems",
+                        "isCorrect": False,
+                        "consequence": "Customers told to halt transactions. Dealerships lose an estimated revenue daily. Customers begin calling competitors and initiating contract review processes. Some dealers who continued anyway with manual processes have no guidance on how to reconcile later.",
+                        "nextStageId": "s2_forensic_recovery_balance",
+                        "technicalExplanation": "Advising customers to completely halt business because your platform is down is not an acceptable B2B incident response posture. Your customers have their own obligations (car buyers waiting, service appointments booked). Manual workarounds with clear reconciliation guidance are the standard BCP for platform outages. The reconciliation problem is real but manageable — it is far less damaging than lost sales and customer defection."
+                    },
+                    {
+                        "actionText": "Focus all communication resources on your top 100 enterprise customers (largest accounts) and use automated bot responses for the remaining 14,900",
+                        "isCorrect": False,
+                        "consequence": "Enterprise customers receive good support. Small and mid-size dealers (the majority) receive automated responses that cannot answer specific questions about manual workflows. 3,400 small dealers begin evaluating competitor platforms within the week. Long-tail customer churn becomes a multi-year revenue problem.",
+                        "nextStageId": "s2_forensic_recovery_balance",
+                        "technicalExplanation": "In a platform-wide outage, tiering customer support exclusively by account size creates a perception (and reality) of abandonment for smaller customers. For a B2B SaaS provider, small and mid-size customers often represent the majority of revenue in aggregate and the majority of industry word-of-mouth. An automated response that cannot address specific operational questions is functionally no support at all."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_forensic_recovery_balance",
+                "irPhase": "Containment",
+                "prompt": "Customer notifications sent. Operational guidance distributed. Now the critical internal decision: your infrastructure team wants to start restoring services from backup immediately — they believe they can get 30% of customers back online within 24 hours. Your forensic team says: 'We need 48-72 hours of forensic work before we restore anything — otherwise we risk restoring into a compromised environment.' The business is losing revenue per hour of outage. How do you balance forensic integrity against recovery speed?",
+                "analystContext": "This is the core tension in ransomware response for SaaS providers: forensics takes time, but every hour of downtime costs customers money and erodes trust. The forensic team's concern is valid — if the initial access vector is not identified and closed, restoration could re-infect. The business concern is also valid — 15,000 customers cannot wait 72 hours.",
+                "networkContext": "Initial access vector hypothesis: forensic team found evidence of a vishing attack on the helpdesk 3 days ago — a call that resulted in a 'temporary MFA exception' for a privileged account. That account's activity shows lateral movement beginning 2 days ago. The initial access vector is known (vishing/helpdesk), the access path is known (privileged account), and the account has been disabled.",
+                "endpointContext": "Forensic team has identified: (1) initial access account (disabled), (2) lateral movement path (documented), (3) persistence mechanisms on 14 servers (scheduled tasks and registry run keys), (4) ransomware binary hash (known RaaS variant, no zero-day). Unknown: complete list of all persistence-implanted servers. Estimated time to complete persistence audit: 48 hours.",
+                "irLeadContext": "Structured recovery option: restore in isolated staging environment, verify clean state, then promote to production. This adds 12 hours to recovery vs. direct restoration but allows forensic work to continue in parallel on production evidence while staging goes through recovery pipeline.",
+                "options": [
+                    {
+                        "actionText": "Implement staged recovery: rebuild the first 30% of servers (starting with authentication and core services) in an isolated staging environment, verify clean state with forensic team sign-off, then promote to production. Run forensics on production evidence in parallel. Update customers on the staged recovery plan with realistic timelines.",
+                        "isCorrect": True,
+                        "consequence": "First 30% of customers restored in 36 hours (24 hours build + 12 hours forensic sign-off). Forensics continues on remaining production evidence in parallel. Initial access vector confirmed closed. No re-infection. Full restoration complete in 6 days.",
+                        "nextStageId": "s3_recovery_sequencing",
+                        "technicalExplanation": "Staged recovery — rebuild in isolation, verify, then promote — is the forensically responsible and operationally pragmatic approach. It allows partial service restoration (highest-priority customers first) without contaminating production forensic evidence. The 12-hour overhead for forensic sign-off per batch is recovered many times over by preventing re-infection (which would reset the recovery clock entirely). This is the industry standard for ransomware recovery in SaaS environments."
+                    },
+                    {
+                        "actionText": "Begin immediate restoration from backup without waiting for forensics — the initial access vector (vishing) is already known and the account is disabled, so the environment is clean",
+                        "isCorrect": False,
+                        "consequence": "Restoration begins. Day 3: re-infection occurs. Forensic analysis (post-re-infection) reveals 14 servers had scheduled task persistence that survived the backup restoration process — these tasks re-established attacker access on restoration. Recovery clock resets. Total downtime: 14 days instead of 6.",
+                        "nextStageId": "s3_recovery_sequencing",
+                        "technicalExplanation": "Knowing the initial access vector does not mean the environment is clean. The attacker had a 3-day dwell period and established persistence on 14 servers (known from forensics). If those servers are restored from backups taken during the dwell period, the persistence mechanisms are also restored. Forensic verification of each server's clean state before promotion to production is essential — not optional."
+                    },
+                    {
+                        "actionText": "Give the forensic team 72 hours to complete their work before any restoration begins — forensic integrity must be preserved",
+                        "isCorrect": False,
+                        "consequence": "72-hour forensic hold. Full scope determined accurately. But customer churn during 72-hour wait: 800 dealerships have signed emergency contracts with a competitor platform. Enterprise customer penalties for SLA breach triggered at 24 and 48 hours. Business damage from forensic hold exceeds the risk it was protecting against.",
+                        "nextStageId": "s3_recovery_sequencing",
+                        "technicalExplanation": "A blanket forensic hold without any recovery is appropriate for law enforcement evidence preservation requirements — but in most commercial ransomware incidents, full forensic completion is not required before staged recovery begins. The key requirement is that the initial access vector is closed and each server's clean state is verified before it returns to production. Both requirements can be satisfied incrementally as servers are rebuilt."
+                    },
+                    {
+                        "actionText": "Restore the highest-revenue customers' data first to minimise business impact — let forensic investigation happen after the critical accounts are back online",
+                        "isCorrect": False,
+                        "consequence": "Top 200 customers restored without forensic verification. One restored server contains a persistence mechanism that re-establishes attacker access. Attacker uses this foothold to access the restored customer data of your largest accounts. Second data breach within the first breach incident.",
+                        "nextStageId": "s3_recovery_sequencing",
+                        "technicalExplanation": "Prioritising restoration by revenue without forensic verification directly exposes your highest-value customers to the greatest risk. Persistence mechanisms do not respect revenue tiers. Forensic verification must precede restoration for all servers — the priority order of restoration can follow customer impact, but the verification step cannot be skipped for any server regardless of customer importance."
+                    }
+                ]
+            },
+            {
+                "stageId": "s3_recovery_sequencing",
+                "irPhase": "Eradication & Recovery",
+                "prompt": "Staged recovery approved. First batch of 3,000 customers restored and online. Day 4 of the incident — 12,000 customers still offline. Media coverage is now significant: two national journalists have written pieces questioning why a software provider of your scale was compromised via a helpdesk vishing call. Your CISO asks you to advise on what immediate security improvements to announce publicly that would demonstrate learning and commitment to hardening. What do you recommend?",
+                "analystContext": "Post-incident public hardening announcements must be: (1) genuine — actually implementable and committed to, (2) specific — vague 'we are improving security' statements damage credibility, (3) proportionate — address the actual attack vector, not a generic list. The vishing attack succeeded because the helpdesk had a policy allowing MFA exceptions via phone request without identity verification.",
+                "networkContext": "Root cause confirmed: helpdesk agent followed an undocumented informal process — MFA exception via phone call with password-only verification. No callback verification, no manager approval, no ticketing requirement. This process was used legitimately by executives who 'did not want to deal with MFA' — the attacker knew this and exploited it.",
+                "endpointContext": "Security controls in place at time of incident: MFA deployed for all admin accounts, privileged access workstations for some DA accounts, EDR on 80% of endpoints (the 20% without EDR were the lateral movement staging servers). Backup infrastructure on isolated network (backups intact). Monitoring: SIEM had the anomalous helpdesk action logged but no alert rule for 'MFA exception provisioned via phone.'",
+                "irLeadContext": "Board expectation: the CISO will present a hardening plan to the board next week. It must be credible, specific, and address the root cause. Generic claims of 'enhanced security' will not satisfy the board or customers. The announcement needs to land before the board presentation.",
+                "options": [
+                    {
+                        "actionText": "Announce and immediately implement: (1) elimination of phone-based MFA exceptions — all exceptions require a manager-approved helpdesk ticket with callback verification, (2) SIEM alert for any MFA exception provisioning, (3) mandatory privileged access workstations for all DA accounts, (4) EDR deployment to the remaining 20% of endpoints within 30 days.",
+                        "isCorrect": True,
+                        "consequence": "Announcement credible — directly addresses root cause. SIEM alert implemented within 24 hours. Helpdesk policy updated immediately. Board satisfied with specificity and immediacy. Customer trust partially restored — evidence of learning and accountability.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Post-incident hardening announcements are most credible when they directly address the confirmed root cause. The vishing attack succeeded because: (1) informal helpdesk processes allowed MFA bypass without verification, (2) no SIEM alert existed for privilege provisioning, (3) EDR coverage gaps allowed the attacker to use staging servers without detection. Addressing these three specific gaps with concrete, timeline-committed actions is the appropriate public response."
+                    },
+                    {
+                        "actionText": "Announce a comprehensive 12-month security transformation programme covering zero trust architecture, cloud security posture management, and threat intelligence integration",
+                        "isCorrect": False,
+                        "consequence": "Programme announced. Customers and media note the 12-month timeline and absence of immediate changes. Security analyst community points out the announcement does not address the actual root cause (helpdesk vishing). Credibility of announcement questioned publicly.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Long-term transformation programmes are appropriate long-term planning — they are not appropriate as the primary post-incident response. They do not address the immediate root cause and the 12-month timeline signals no immediate improvement. Immediate, specific, root-cause-targeted controls are required alongside any longer-term programme."
+                    },
+                    {
+                        "actionText": "Make no public announcement about security improvements — disclosing your security changes tells attackers what to avoid next time",
+                        "isCorrect": False,
+                        "consequence": "No announcement made. Customer CISO community interprets silence as evidence that no improvements have been made. Competitive intelligence: two competitor platforms use your silence in sales conversations. Three enterprise customer RFPs received requesting evidence of post-incident security improvements.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Security through obscurity is not an appropriate post-incident posture for a B2B platform provider. Your customers have a legitimate interest in knowing what controls you have improved — their own security teams are assessing whether to continue trusting your platform with their data. The controls being announced (helpdesk policy, MFA requirements, EDR coverage) are not secret — they are standard practices whose implementation does not reveal exploitable attack paths."
+                    },
+                    {
+                        "actionText": "Announce that you are conducting a full third-party security assessment and will implement all recommendations — demonstrate commitment to expert-driven improvement",
+                        "isCorrect": False,
+                        "consequence": "Third-party assessment announced. Customers ask: 'When will the assessment be complete and what immediate changes are being made right now?' The announcement defers accountability to a future assessment rather than demonstrating current learning. Two customers cite this response in contract termination letters.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Commissioning a third-party assessment is good practice but should be a complement to, not a substitute for, immediate root-cause remediation. The root cause of this incident is already confirmed — it does not require a third-party assessment to identify. Immediate implementation of root-cause controls demonstrates learning; deferring to an assessment signals that root causes are not yet understood or owned."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_customer_panic",
+                "irPhase": "Containment",
+                "prompt": "CRISIS: A junior communications manager sent an early draft notification to all 15,000 customers before legal review — it contained an incorrect statement: 'All customer data including financial records has been confirmed stolen.' This was based on an early hypothesis, not confirmed forensics. Within 2 hours: 400 dealerships have sent formal notices terminating their contracts, 15 attorneys general offices have called, and a class action lawsuit has been filed. The actual forensic scope shows the data exfiltration is limited to internal operational data — customer PII in your platform's vault is encrypted at rest and the vault was not decrypted by the ransomware. How do you respond?",
+                "analystContext": "A material misstatement in a breach notification — stating that data was stolen when forensics shows it likely was not — is both a regulatory and reputational crisis layered on top of the original incident. The corrective communication must be immediate, accurate, and verifiable.",
+                "networkContext": "Customer data architecture: financial records and PII stored in an HSM-backed vault (hardware security module). The vault encryption key was not accessible to the ransomware (it requires hardware authentication). Forensic team has confirmed: vault data was not decrypted or exfiltrated. The rclone activity was limited to internal operations data (server configs, internal documentation).",
+                "endpointContext": "Forensic evidence supporting the correction: vault access logs show no reads during the attack window. rclone destination was an internal staging server (not cloud storage). The 'data stolen' hypothesis came from a file rename event on an internal config backup — not customer data.",
+                "options": [
+                    {
+                        "actionText": "Issue an immediate corrective notification to all 15,000 customers within 1 hour with the forensic evidence basis: 'We must correct our earlier notification. Forensic investigation confirms customer PII and financial data in our vault was not accessed. We apologise for the premature and inaccurate communication. Here is the evidence basis for this correction.' Notify regulators proactively of the correction.",
+                        "isCorrect": True,
+                        "consequence": "Corrective notification reaches customers within 1 hour. Many contract termination notices are paused pending the correction. Regulatory bodies acknowledge the proactive correction. Class action scope narrows — the corrective notification demonstrates good faith and reduces damages exposure. Trust partially restored.",
+                        "nextStageId": None,
+                        "technicalExplanation": "When a material misstatement has been made in a breach notification, the only appropriate response is immediate correction with an evidence basis. Delay or hedging compounds the original error. Proactive regulator notification of the correction demonstrates good faith and is legally protective. The forensic evidence (vault access logs, rclone destination analysis) provides the factual basis for the correction — it must be included, not just the conclusion."
+                    },
+                    {
+                        "actionText": "Do not correct the notification immediately — wait until forensics is 100% complete before saying anything, to avoid issuing a second incorrect statement",
+                        "isCorrect": False,
+                        "consequence": "No correction for 72 hours. 1,200 additional contract terminations. AG investigations expand to 22 states. When correction eventually issued, the damage is significantly compounded by the delay. Courts later note the 72-hour delay as evidence of poor faith.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Leaving a material misstatement uncorrected while awaiting perfect forensic certainty causes exponential reputational and legal damage. The forensic evidence already available (vault access logs, rclone destination) is sufficient to support a correction. 'We are still investigating but current evidence does not support our earlier statement' is a legally valid correction — it does not require 100% certainty."
+                    },
+                    {
+                        "actionText": "Issue the correction but do not mention the original error was incorrect — frame it as 'updated information as our investigation progresses'",
+                        "isCorrect": False,
+                        "consequence": "Correction issued as 'update.' Customers compare the two notifications. Journalists note the material difference between 'all data stolen' and 'no customer data accessed.' The framing is identified as evasive. Narrative becomes 'company tried to walk back breach claim without admitting error' — worse than direct correction.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Euphemistic corrections ('updated information') when there has been a material factual error are invariably identified and characterised as evasive. Direct acknowledgment of the error and its correction is more credible and legally protective than reframing. Courts and regulators respond better to 'we made an error and here is the correction' than to language designed to obscure that an error occurred."
+                    },
+                    {
+                        "actionText": "Engage a PR firm to manage the narrative and delay any corrective communication until a media strategy is in place",
+                        "isCorrect": False,
+                        "consequence": "PR firm engaged — available in 6 hours. During those 6 hours: 600 more contract terminations, 3 additional class action lawsuits filed, and a major industry publication runs a story on the breach. When correction eventually issued, the PR strategy is secondary to the factual correction — the 6-hour delay caused more damage than the PR firm prevented.",
+                        "nextStageId": None,
+                        "technicalExplanation": "PR strategy is legitimate for message framing but cannot delay a material factual correction. The communication obligation in this scenario is legal and contractual — not merely reputational. The 6-hour delay to develop a 'strategy' compounds the original error. The correction must be issued immediately, with or without PR consultation — the PR team can refine future messaging but cannot hold a correction hostage to strategy development."
+                    }
+                ]
+            }
+        ],
+        "referenceLinks": [
+            "https://www.cisa.gov/stopransomware/ransomware-guide",
+            "https://attack.mitre.org/techniques/T1566/004/",
+            "https://attack.mitre.org/techniques/T1199/",
+            "https://www.ftc.gov/business-guidance/privacy-security/data-security"
+        ]
+    }
+})
+
+SCENARIOS.append({
+    "name": "Operation: Claims Denied",
+    "description": "ALPHV/BlackCat gains access to a healthcare payment clearinghouse via an unprotected Citrix remote access portal. As IR Lead, navigate the most consequential ransomware scenario in the simulator: healthcare payment systems encrypted, hospitals cannot get reimbursed, pharmacies cannot process prescriptions, and HIPAA breach obligations interact with a double-extortion threat.",
+    "initial_prompt": "You are the IR Lead at a healthcare payment clearinghouse processing insurance claims for thousands of hospitals, clinics, and pharmacies nationwide. 03:45 — SIEM alert: 'Mass file encryption activity on CLAIMS-PROC-01 through CLAIMS-PROC-18. Ransomware note: YOUR NETWORK HAS BEEN ENCRYPTED BY ALPHV.' Simultaneously: your NOC reports that claim submission portals are returning errors for all payer connections. You receive a text from your CISO: 'This is the one we've been dreading. Every hospital connected to us is now blocked from submitting claims.' What is your immediate first action?",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "ALPHV/BlackCat-class (Rust-based cross-platform RaaS — Citrix remote access exploitation via valid stolen credentials without MFA → lateral movement → data exfiltration → BlackCat deployment; healthcare critical infrastructure; HIPAA breach implications; double extortion with patient health information)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Citrix remote access portal (no MFA) → valid stolen credentials (purchased from initial access broker or credential stuffing) → lateral movement across payment processing infrastructure → rclone exfiltration of claims data → ALPHV ransomware deployed via legitimate admin tools → healthcare payment processing encrypted",
+        "keyTTPs": [
+            "T1133 — External Remote Services (Citrix without MFA)",
+            "T1078 — Valid Accounts (stolen credentials, no MFA protection)",
+            "T1021 — Remote Services (lateral movement post-Citrix)",
+            "T1048 — Exfiltration Over Alternative Protocol (rclone to cloud storage)",
+            "T1486 — Data Encrypted for Impact (ALPHV BlackCat)",
+            "T1657 — Financial Theft / Double Extortion",
+            "T1590 — Gather Victim Network Information (pre-attack reconnaissance)"
+        ],
+        "simulationContext": "Healthcare payment clearinghouse processing 15 million claims per day. Connected to: 2,000+ hospitals, 65,000+ pharmacies, 900 insurance payers. Claims data contains: patient names, DOB, insurance IDs, diagnosis codes (ICD-10), procedure codes (CPT), Social Security Numbers for Medicaid. HIPAA covered entity — breach notification required within 60 days, HHS notification required. Payment processing offline = hospitals cannot get reimbursed = cash flow crisis for providers.",
+        "decisionTree": [
+            {
+                "stageId": "s0_crisis_command",
+                "irPhase": "Detection & Analysis",
+                "prompt": "ALPHV ransomware confirmed on 18 payment processing servers. Your Citrix portal logs show: a service account 'svc_citrix_admin' authenticated from an unusual IP (Tor exit node) at 01:22 — 2 hours before the encryption. That account has no MFA. It accessed 14 servers over 2 hours before encryption began. Patient data from 15 million daily claims — including diagnosis codes and SSNs — may be at risk. What are your simultaneous first actions? You have multiple crises happening at once.",
+                "analystContext": "You are managing 4 simultaneous critical tracks: (1) Technical containment of the ransomware. (2) Patient safety — downstream providers cannot process prescriptions or claims. (3) HIPAA breach assessment — 60-day clock, HHS notification within 60 days. (4) Ransom decision — ALPHV is known for data publication if not paid. You cannot manage all four alone.",
+                "networkContext": "Citrix portal: internet-facing, no MFA on service accounts. svc_citrix_admin last legitimate use: 3 months ago (decommissioned account never disabled). Current encryption: 18 of 47 processing servers. 29 servers unaffected so far. Citrix portal is still accessible — the attacker may still have a live session.",
+                "endpointContext": "Encrypted servers: CLAIMS-PROC-01 through CLAIMS-PROC-18. Unaffected: CLAIMS-PROC-19 through CLAIMS-PROC-47, database servers, backup infrastructure. ALPHV ransom note confirms data exfiltration: 'We have downloaded 6TB of your data.' rclone in prefetch on a staging server confirms this claim.",
+                "irLeadContext": "You need to immediately delegate track ownership. Track 1 (technical) stays with you. Track 2 (provider impact) goes to your VP of Operations. Track 3 (HIPAA/legal) goes to Legal and Privacy Officer. Track 4 (executive) goes to CISO. Without explicit delegation in the first 30 minutes, all four tracks stall.",
+                "options": [
+                    {
+                        "actionText": "Disable the svc_citrix_admin account and close the Citrix portal immediately to stop active attacker access. Isolate the 18 encrypted servers from the unaffected 29. Establish an incident command structure with explicit track ownership. Notify your CISO and Privacy Officer simultaneously.",
+                        "isCorrect": True,
+                        "consequence": "Citrix closed — active attacker session terminated. svc_citrix_admin disabled. 18 encrypted servers isolated. 29 unaffected servers protected. Command structure established. All four tracks have owners within 20 minutes. Containment successful.",
+                        "nextStageId": "s1_hipaa_assessment",
+                        "technicalExplanation": "The Citrix portal is the confirmed attacker entry point and may still have an active session. Closing it immediately is the single most important containment action — it terminates any live attacker access before they can encrypt additional servers. svc_citrix_admin disablement closes the compromised credential. Isolating the 18 encrypted servers protects the 29 unaffected ones. Incident command structure ensures all four simultaneous crises have dedicated owners — essential in a complex multi-stakeholder incident."
+                    },
+                    {
+                        "actionText": "Focus entirely on technical containment first — restore the unaffected 29 servers from backup while containing the 18 encrypted servers, before addressing HIPAA or provider impact",
+                        "isCorrect": False,
+                        "consequence": "Technical focus produces clean containment of 18 servers. But: Citrix portal left open — attacker establishes persistence on two additional servers during the 40-minute technical focus window. HIPAA clock runs without Privacy Officer engagement. Provider impact escalates without VP coordination. Four tracks needed four owners — one-track focus fails three.",
+                        "nextStageId": "s1_hipaa_assessment",
+                        "technicalExplanation": "In a multi-stakeholder healthcare ransomware incident, sequential single-track management is not viable. HIPAA obligations run independently of technical recovery. Provider impact has patient safety implications that cannot wait for technical work to complete. The CISO and Privacy Officer need to be engaged within minutes, not after technical containment is established."
+                    },
+                    {
+                        "actionText": "Notify connected hospitals and pharmacies first — patient safety is the primary obligation and they need to know immediately that claims processing is offline",
+                        "isCorrect": False,
+                        "consequence": "Provider notifications sent. But the Citrix portal is still open — attacker is still active and encrypts 8 more servers during the notification process. svc_citrix_admin still active. Containment has not started while notifications went out.",
+                        "nextStageId": "s1_hipaa_assessment",
+                        "technicalExplanation": "Provider notification is critical but cannot precede containment — containment stops the active damage. Notification tells downstream providers what is happening but does not change the scope of the breach. An additional 8 servers encrypted during a notification-first approach extends recovery by days. Containment first, notification in parallel, is the correct sequencing."
+                    },
+                    {
+                        "actionText": "Initiate ransom negotiation immediately — ALPHV has exfiltrated 6TB of PHI and threatening to publish. Getting a decryptor and non-publication agreement should be the first priority.",
+                        "isCorrect": False,
+                        "consequence": "Negotiation initiated. Attacker is still active via Citrix — they continue encrypting 11 more servers during the negotiation opening. ALPHV typically does not respond to initial contact for 12-24 hours. Containment delayed by 24 hours. 11 additional servers encrypted.",
+                        "nextStageId": "s1_hipaa_assessment",
+                        "technicalExplanation": "Ransom negotiation is a later-stage decision that should occur only after containment is established. Initiating negotiation before containment is like negotiating over a phone while someone is still breaking into your house. ALPHV negotiation contacts typically have multi-hour response windows — no immediate operational benefit. Containment comes first."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_hipaa_assessment",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Citrix closed. 18 servers isolated. 29 servers protected. Incident command active. Your Privacy Officer asks: 'The 6TB exfiltration claim from ALPHV — if that's true, this is potentially the largest healthcare breach in history. When do we notify HHS and the media?' The attacker accessed systems containing claims data with diagnosis codes, SSNs, and patient identifiers for patients who filed claims in the past 24 months. You do not yet have forensic confirmation of what was in the 6TB. How do you handle the HIPAA timeline?",
+                "analystContext": "HIPAA Breach Notification Rule: (1) notify affected individuals within 60 days of discovery, (2) notify HHS within 60 days for breaches <500 individuals, or within 60 days for larger breaches AND notify HHS immediately for breaches >500 in a state (prominent media required for state). If breach exceeds 500 individuals, HHS publishes it on their public breach portal. Discovery date: today. 60-day clock started at 03:45.",
+                "networkContext": "rclone activity: staging server to a cloud storage endpoint. 6TB over 4 hours. File access logs on the staging server show bulk reads from: CLAIMS-ARCHIVE-01 (2-year rolling claims archive), MEMBER-DATA-02 (payer member eligibility data). These archives contain claims for an estimated 100M+ patient records over 24 months.",
+                "endpointContext": "Forensic status: rclone destination identified (cloud storage provider subpoena pending). File access logs confirm which directories were read. Actual patient count in those directories: 100M+ records (estimated). Cannot confirm exact count without archive analysis (3-5 days). HIPAA requires notification even when exact count is still being determined.",
+                "irLeadContext": "This breach, if the 6TB exfiltration is real, affects potentially hundreds of millions of patient records — every patient whose claim ran through your clearinghouse in 24 months. HHS notification of a breach this size will trigger a public announcement on the HHS breach portal ('wall of shame'). Legal has confirmed: the 60-day clock is running and there is no extension mechanism.",
+                "options": [
+                    {
+                        "actionText": "Begin HIPAA breach notification preparation immediately, treating the breach as confirmed based on forensic evidence (rclone + file access logs). Notify HHS within the 60-day window with interim counts while final forensics continues. Brief the board on mandatory notification requirements before any public statement.",
+                        "isCorrect": True,
+                        "consequence": "HIPAA process activated correctly. HHS notified within 60-day window. Forensic count updated as analysis progresses. Board briefed before public announcement. Notification process compliant. Media notification prepared correctly for states with >500 affected individuals.",
+                        "nextStageId": "s2_provider_impact",
+                        "technicalExplanation": "HIPAA breach notification is mandatory when PHI was accessed by an unauthorised person — this threshold is met when rclone exfiltrated data from directories confirmed to contain PHI. The exact patient count does not need to be final before notifying HHS — HIPAA allows notification with preliminary counts updated as investigation continues. The 60-day clock is absolute and has no extension. Preparing notification immediately while forensics continues is the correct and only compliant approach."
+                    },
+                    {
+                        "actionText": "Wait for forensic confirmation of the exact patient count before any HIPAA notification — notifying with an incorrect count creates a second regulatory violation",
+                        "isCorrect": False,
+                        "consequence": "Forensic analysis takes 45 days. Notification sent at day 46 with exact counts. Appears compliant. But HHS investigation later finds: the breach was discoverable at day 1 (rclone evidence was clear) and the 45-day delay was not justified by forensic necessity. Delayed notification finding issued.",
+                        "nextStageId": "s2_provider_impact",
+                        "failBranchStageId": "s_hipaa_violation",
+                        "technicalExplanation": "HIPAA does not require exact patient counts before notification — it requires notification within 60 days of discovery. Interim or estimated counts are acceptable and standard practice for large breaches where archival analysis takes time. Waiting for forensic certainty is not a HIPAA compliance defence — regulators assess whether notification was initiated promptly after discovery, not whether counts were perfect."
+                    },
+                    {
+                        "actionText": "Treat the 6TB exfiltration as unconfirmed until ALPHV proves it — ransomware groups frequently bluff about data theft to increase ransom pressure",
+                        "isCorrect": False,
+                        "consequence": "No HIPAA process initiated based on 'unconfirmed' exfiltration. Forensics at day 14 confirms the exfiltration was real. HIPAA notification was 14 days delayed. HHS investigation finds the rclone evidence on day 1 was sufficient to trigger the 60-day clock — the 14-day delay is a violation.",
+                        "nextStageId": "s2_provider_impact",
+                        "technicalExplanation": "rclone activity logs and file access logs confirming bulk reads from PHI-containing directories is forensic evidence of exfiltration — it does not require the attacker's claim to be verified. The HIPAA threshold for breach notification is 'unauthorised access to PHI' — this is met when an unauthorised user (via compromised Citrix credentials) accessed directories containing PHI. The attacker's claim is corroborating evidence, not the primary evidence."
+                    },
+                    {
+                        "actionText": "Notify only the health insurance payers directly connected to your system — they can then notify their plan members, reducing your notification burden",
+                        "isCorrect": False,
+                        "consequence": "Payers notified. But HIPAA breach notification obligation rests with the covered entity (you) — not the payers. Payers are business associates; they are not responsible for your breach notification. HHS investigation finds the notification was insufficient. Penalty issued for failure to notify affected individuals directly.",
+                        "nextStageId": "s2_provider_impact",
+                        "technicalExplanation": "Under HIPAA, a covered entity or business associate that experiences a breach must notify affected individuals directly — this obligation cannot be delegated to other parties in the claims processing chain. Payer notification is appropriate for business relationship management, but does not satisfy HIPAA's individual notification requirement. The clearinghouse is the entity that experienced the breach and holds the notification obligation."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_provider_impact",
+                "irPhase": "Containment",
+                "prompt": "HIPAA process active. It is now 6 hours into the incident. Hospitals and pharmacies are reporting critical operational impacts: patients cannot fill prescriptions because pharmacies cannot get real-time eligibility verification. Hospitals cannot submit claims for services already rendered — some are running out of cash reserves. A hospital CFO calls: 'We provide care to 40% Medicaid patients. If we cannot submit claims for 3 weeks, we cannot make payroll. We need $50M in emergency bridge financing.' What is your role in the provider impact response?",
+                "analystContext": "This is the unique characteristic of healthcare ransomware — the human impact goes beyond data loss. A hospital that cannot submit claims faces a genuine existential financial crisis. This is not your organisation's financial problem to solve — but it is your organisation's operational responsibility to address. Government emergency assistance programs may be available.",
+                "networkContext": "Some claim submission capability can be restored using a manual submission process (paper claims, phone-based eligibility checks) but this requires payers to accept non-electronic submissions temporarily — something that requires payer cooperation and regulatory flexibilities. CMS (Centers for Medicare & Medicaid Services) has emergency authority to grant processing flexibilities.",
+                "endpointContext": "Technical workaround assessment: (1) Manual claim submission via paper: possible for hospitals, slow — 10x normal processing time. (2) Temporary advance payments: CMS has authority to issue accelerated payments to hospitals in emergencies. (3) Alternative clearinghouse routing: some claims can be rerouted via competitor clearinghouses with payer approval. Your technical team is assessing which payer connections can be rerouted.",
+                "irLeadContext": "Government response: HHS/CMS has been notified as required by HIPAA. CMS has the authority to grant accelerated Medicare payments and processing flexibilities. Your organisation's government relations team needs to engage CMS immediately — this is not just an IR function, it is a government affairs emergency.",
+                "options": [
+                    {
+                        "actionText": "Establish a provider impact task force: (1) Coordinate with CMS to activate emergency accelerated payment authority for affected hospitals, (2) identify which payer connections can be rerouted to alternative clearinghouses within 24 hours, (3) provide hospitals with a manual submission guide, (4) commit to provider-specific status updates every 4 hours.",
+                        "isCorrect": True,
+                        "consequence": "CMS activates emergency accelerated payments for hospitals. 30% of payer connections rerouted to alternative clearinghouses within 36 hours. Hospitals receive manual submission guidance. Provider communication cadence established. Hospital CFO crisis averted — bridge financing not needed with CMS advance payments.",
+                        "nextStageId": "s3_ransom_framework",
+                        "technicalExplanation": "Healthcare ransomware incidents affecting clearinghouses have a documented government response playbook — CMS emergency authorities exist specifically for this scenario. The IR team's role is to: (1) ensure government notification happens (HIPAA requirement), (2) support the technical rerouting of unaffected connections, (3) provide accurate status to enable CMS decision-making. Provider financial crisis resolution requires government and executive track engagement — not just technical IR."
+                    },
+                    {
+                        "actionText": "Tell providers this is outside your control and direct them to contact their health insurance payers directly for workarounds",
+                        "isCorrect": False,
+                        "consequence": "Providers redirect to payers. Payers tell them to use the clearinghouse (you). Providers are told to wait. Day 7: 12 hospitals formally notify their state health departments of an impending payroll crisis. State governments begin emergency proceedings against your organisation.",
+                        "nextStageId": "s3_ransom_framework",
+                        "technicalExplanation": "A clearinghouse that processes 15M claims per day has a unique position in the healthcare system — telling providers to work around you is not viable when you are the only path between providers and many payers. Your organisation has a responsibility to actively support provider continuity, even if the ransomware was not your fault. Directing providers to contact payers without providing actual workarounds creates systemic cascading failures."
+                    },
+                    {
+                        "actionText": "Prioritise restoring your own systems before any provider outreach — you cannot help providers until your platform is operational",
+                        "isCorrect": False,
+                        "consequence": "No provider communication for 48 hours while restoration is prioritised. Hospitals, operating without guidance, attempt to directly connect to payers using legacy HIPAA EDI 837 transactions — many of which fail due to different formatting requirements. Provider confusion and workarounds create a reconciliation backlog that persists for months.",
+                        "nextStageId": "s3_ransom_framework",
+                        "technicalExplanation": "Provider impact management does not require your platform to be operational — it requires information, guidance, and coordination. Manual submission guides, CMS engagement, and alternative routing do not depend on your platform recovery. Delaying provider communication until platform restoration is a siloed approach that ignores the healthcare system's immediate operational needs."
+                    },
+                    {
+                        "actionText": "Issue a force majeure declaration citing the ransomware attack as an unforeseeable event — this releases your organisation from its contractual service obligations during the outage",
+                        "isCorrect": False,
+                        "consequence": "Force majeure declared. Legal team spends 3 days on the declaration. Providers receive a legal document instead of operational guidance. 40 providers file formal breach of contract complaints anyway — legal review of the clearinghouse's force majeure clause finds it does not cover cybersecurity incidents. Declaration ineffective.",
+                        "nextStageId": "s3_ransom_framework",
+                        "technicalExplanation": "Force majeure declarations in ransomware incidents are frequently legally challenged — cybersecurity incidents are increasingly excluded from force majeure provisions in modern contracts as foreseeable risks. More importantly, a legal declaration does not address the operational crisis — it is a liability management tool, not a provider continuity tool. Operational support must not be delayed while legal documents are prepared."
+                    }
+                ]
+            },
+            {
+                "stageId": "s3_ransom_framework",
+                "irPhase": "Containment",
+                "prompt": "Day 3. Provider impact managed. HIPAA process active. Containment complete. Now the ransom decision. ALPHV has published 22 sample patient records on their leak site — confirmed as real patient PHI from your claims archive. They are demanding payment for a decryptor AND for non-publication of the remaining 6TB. Your backup infrastructure is intact — restoration will take an estimated 21 days to fully restore all services. ALPHV claims they can decrypt everything in 4 days with the key. Your CISO, General Counsel, CFO, and Government Relations VP are in the room. Walk them through the decision framework.",
+                "analystContext": "The ransom decision framework has multiple dimensions specific to this incident: (1) OFAC sanctions check — ALPHV may be on a US Treasury sanctions list (previous ALPHV sanctions designations exist). Paying a sanctioned entity is a federal violation. (2) Patient safety impact of 21-day outage vs. 4-day decryptor. (3) Non-publication guarantee reliability. (4) FBI/CISA coordination — government may have visibility on the affiliate.",
+                "networkContext": "OFAC check status: Treasury OFAC SDN list includes ALPHV/BlackCat as a sanctioned entity following previous government action. Paying ALPHV may constitute a sanctions violation requiring specific OFAC licensing — even in a healthcare emergency. FBI has contacted your team — they have intelligence on this affiliate and request you do not pay without consulting them first.",
+                "endpointContext": "Backup restoration assessment: critical claim processing systems can be partially restored in 8 days (not 21) using a tiered restoration approach — emergency payment processing first, full archival second. ALPHV decryptor reliability: 3 of 5 confirmed victims in the past 12 months received working decryptors. 2 did not. Decryptor-based full recovery is not guaranteed.",
+                "irLeadContext": "FBI position: 'Do not pay. We have intelligence that this ALPHV affiliate has published data from other victims who paid. Payment will likely not prevent publication. We may be able to provide decryption assistance from a recent operation in 5-7 business days.' Government has previously seized ALPHV infrastructure and obtained decryption keys.",
+                "options": [
+                    {
+                        "actionText": "Do not pay. Brief the full decision framework to leadership: OFAC sanctions risk, unreliable decryptor, likely non-publication failure, and FBI decryption assistance timeline. Begin tiered backup restoration targeting 8-day partial recovery. Coordinate with FBI on potential decryption assistance. Notify HHS of the PHI publication.",
+                        "isCorrect": True,
+                        "consequence": "No payment. FBI provides partial decryption assistance for unencrypted servers. Tiered restoration achieves 60% service restoration in 9 days. ALPHV publishes data — but the payment would not have prevented this (documented in this affiliate's history). HHS notified of PHI publication. Full restoration in 18 days.",
+                        "nextStageId": None,
+                        "technicalExplanation": "The ransom decision in this scenario has a clear legal constraint: ALPHV is a sanctioned entity. Payment without OFAC licensing is a federal violation — the healthcare emergency does not create an automatic exception. FBI intelligence confirms non-publication is unlikely even with payment. Government decryption assistance is available within a few days. Tiered backup restoration achieves comparable recovery timeline. All factors point to no payment. Leadership requires a complete decision framework — not just a recommendation — to make an informed decision on a matter this consequential."
+                    },
+                    {
+                        "actionText": "Pay the ransom — the patient safety impact of a 21-day outage justifies the cost and the risk of OFAC violation is manageable with retroactive licensing",
+                        "isCorrect": False,
+                        "consequence": "Ransom paid. OFAC investigation initiated — retroactive licensing request denied (patient safety emergency did not qualify under existing guidance at payment time). Federal enforcement action initiated. ALPHV publishes the data anyway — the affiliate history of post-payment publication was accurate. Both the ransom payment cost and the OFAC penalty are incurred, with no benefit.",
+                        "nextStageId": None,
+                        "technicalExplanation": "OFAC sanctions violations in ransomware payments are seriously prosecuted — there is no automatic healthcare emergency exemption. Retroactive licensing is not guaranteed and is not a legal defence to a completed payment. The FBI intelligence on this affiliate's publication history is reliable — there is documented evidence of post-payment publication. The decision to pay creates OFAC liability, funds criminal operations, and does not achieve the stated goal (non-publication)."
+                    },
+                    {
+                        "actionText": "Pay for the decryptor only (not for non-publication) — treat data publication as unavoidable and focus on the fastest possible technical recovery",
+                        "isCorrect": False,
+                        "consequence": "Partial payment for decryptor. OFAC violation still triggered — the sanctioned entity received funds regardless of stated purpose. Decryptor received and attempted. Works on 11 of 18 servers. 7 servers require backup restoration anyway. No material improvement in recovery timeline vs. full backup restoration. OFAC penalty plus partial ransom payment cost.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Payment to a sanctioned entity (ALPHV) is an OFAC violation regardless of the stated purpose of the payment — 'decryptor only' is not a legally meaningful distinction under sanctions law. Additionally, a 60% decryptor success rate (11/18 servers) combined with a tiered backup restoration (8-day partial recovery) means the decryptor does not materially improve recovery timeline. The OFAC risk is incurred for a questionable operational benefit."
+                    },
+                    {
+                        "actionText": "Request that the FBI pay the ransom on your behalf using seized cryptocurrency to avoid direct OFAC exposure",
+                        "isCorrect": False,
+                        "consequence": "Request made to FBI. FBI declines — they do not pay ransoms on behalf of victims. The request delays your decision by 12 hours while the FBI explains their position. Recovery delayed by the confusion.",
+                        "nextStageId": None,
+                        "technicalExplanation": "The FBI does not pay ransoms on behalf of ransomware victims — this is not a service they provide. They may be able to assist with decryption from seized infrastructure, but only in specific circumstances. The FBI's role is law enforcement, intelligence sharing, and victim support — not financial intermediary in ransom payments."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_hipaa_violation",
+                "irPhase": "Eradication & Recovery",
+                "prompt": "CRITICAL: Your decision to wait for exact patient counts before initiating HIPAA notification has resulted in a 45-day delay. HHS has opened a compliance investigation. Today: ALPHV has published 500,000 patient records on their leak site — full PHI including diagnosis codes, SSNs, and insurance IDs. Three class action lawsuits have been filed. HHS has issued a formal investigation notice. The 60-day HIPAA notification window has 15 days remaining but your notification process has not started. What do you do to limit further regulatory damage?",
+                "analystContext": "You are 45 days into a breach with 15 days remaining in the HIPAA notification window. The PHI publication means affected patients are at active identity theft and medical fraud risk right now. The breach has now been publicly disclosed by the attacker — patients may learn about it from media before receiving your notification. HHS investigation is open.",
+                "networkContext": "Patient notification logistics: estimated 100M patient records in scope requires a large-scale notification operation. Notification can be provided via: (1) direct mail (requires addresses — some may be out of date), (2) substitute notice (website posting + media if addresses are unavailable for >10 patients), (3) prominent media for breaches >500 per state. All three mechanisms may be required.",
+                "endpointContext": "Current status: forensic count now complete — 94 million patient records in scope. Notification vendor available — can begin processing within 48 hours. HHS investigation: initial document requests received. FBI case: ongoing, no arrests.",
+                "options": [
+                    {
+                        "actionText": "Immediately engage a breach notification vendor, prepare and send individual patient notifications within the remaining 15 days, issue prominent media notifications for all states with >500 affected individuals, and provide HHS with a complete timeline and root cause explanation — including why notification was delayed.",
+                        "isCorrect": True,
+                        "consequence": "Notification executed within 15-day window. Patients notified before window closes. HHS investigation notes the delay but also notes the prompt correction once the decision was made. Mitigation credit applied. Penalties reduced compared to missing the window entirely.",
+                        "nextStageId": None,
+                        "technicalExplanation": "The HIPAA 60-day window is absolute — missing it creates an additional violation. With 15 days remaining, notification is still achievable at scale using breach notification vendors and substitute notice mechanisms. A transparent explanation to HHS of the notification delay is legally necessary and may result in mitigation credit. Attempting to meet the deadline, even late in the window, is significantly better than missing it entirely — HIPAA penalties escalate sharply for complete notification failure."
+                    },
+                    {
+                        "actionText": "Seek a regulatory extension from HHS — explain that exact forensic counts were needed before notification and request 30 additional days",
+                        "isCorrect": False,
+                        "consequence": "Extension requested. HHS advises: no extension authority exists for the 60-day notification window. Window expires. Mandatory penalty for notification failure ($100 per record minimum, up to $1.9M per violation category). Total penalty: material. Notification still required after window — now as a delayed notification with higher penalty.",
+                        "nextStageId": None,
+                        "technicalExplanation": "HHS has no statutory authority to extend the HIPAA 60-day breach notification window. This is a hard regulatory deadline, not an administrative timeline. Requesting an extension that does not exist wastes the 15 remaining days that could be used for actual notification. The only path is to use the remaining time to execute notification as completely as possible."
+                    },
+                    {
+                        "actionText": "Focus resources on the HHS investigation defence rather than patient notification — the investigation will be more damaging than the notification deadline",
+                        "isCorrect": False,
+                        "consequence": "Notification window missed entirely. HHS investigation finds both the delayed notification AND the complete notification failure. Penalty for failure to notify is added to the investigation findings. The HHS investigation is not resolved faster by ignoring notification — the investigation covers both the breach AND the notification failure.",
+                        "nextStageId": None,
+                        "technicalExplanation": "The HHS investigation and the patient notification obligation are separate tracks — resources applied to one do not reduce the other. Missing the notification window while focusing on the investigation creates an additional and compounding violation. Notification must proceed regardless of investigation status."
+                    },
+                    {
+                        "actionText": "Notify only the 500,000 patients whose data was confirmed published by ALPHV — limit notification to confirmed exposure rather than the full 94M forensic scope",
+                        "isCorrect": False,
+                        "consequence": "Partial notification sent to 500,000 patients. HHS investigation finds: forensic evidence confirmed 94M records were in the exfiltrated dataset. Notifying only the published subset is a HIPAA violation — all records in the exfiltrated dataset are in scope for notification, not just those that were published.",
+                        "nextStageId": None,
+                        "technicalExplanation": "HIPAA breach notification scope is determined by unauthorised access to PHI — not by what was subsequently published. All 94M records that were in the exfiltrated dataset are subject to notification because they were accessed without authorisation. Publication is not the threshold — access is the threshold. Limiting notification to published records understates the breach scope and creates an additional violation."
+                    }
+                ]
+            }
+        ],
+        "referenceLinks": [
+            "https://www.hhs.gov/hipaa/for-professionals/breach-notification/index.html",
+            "https://attack.mitre.org/software/S0446/",
+            "https://www.cisa.gov/sites/default/files/2024-03/aa24-060a-stopransomware-alphv-blackcat.pdf",
+            "https://home.treasury.gov/system/files/126/ofac_ransomware_advisory.pdf"
+        ]
+    }
+})
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Seed runner
