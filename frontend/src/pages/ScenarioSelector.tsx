@@ -137,16 +137,21 @@ export function ScenarioSelector({
   const [loading,     setLoading]    = useState(true)
   const [starting,    setStarting]   = useState<number | null>(null)
   const [startErr,    setStartErr]   = useState('')
+  const [fetchErr,    setFetchErr]   = useState(false)
   const [activePhase, setPhase]      = useState<PhaseId>('all')
   const [diffFilter,  setDiffFilter] = useState('all')
   const [search,      setSearch]     = useState('')
 
-  useEffect(() => {
-    api.get<ScenarioFull[]>('/scenarios')
+  const fetchScenarios = () => {
+    setLoading(true)
+    setFetchErr(false)
+    api.get<ScenarioFull[]>('/game/scenarios')
       .then(setScenarios)
-      .catch(() => {})
+      .catch(() => setFetchErr(true))
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { fetchScenarios() }, [])
 
   // Phase sets per scenario
   const phaseMap = useMemo(() =>
@@ -363,8 +368,23 @@ export function ScenarioSelector({
           </div>
         )}
 
+        {/* Fetch error */}
+        {!loading && fetchErr && (
+          <div className="flex flex-col items-center justify-center py-32 gap-4 text-gray-500">
+            <span className="text-4xl opacity-20">⚠</span>
+            <p className="text-sm font-mono text-gray-400">Failed to load scenarios</p>
+            <button
+              onClick={fetchScenarios}
+              className="px-4 py-2 border border-cyan-800 text-cyan-500 hover:bg-cyan-950/40
+                         text-xs font-mono rounded-lg transition-all tracking-widest uppercase"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Empty */}
-        {!loading && visible.length === 0 && (
+        {!loading && !fetchErr && visible.length === 0 && (
           <div className="flex flex-col items-center justify-center py-32 gap-3 text-gray-500">
             <span className="text-5xl opacity-10">◎</span>
             <p className="text-sm font-mono text-gray-400">No scenarios match this filter</p>
@@ -378,7 +398,7 @@ export function ScenarioSelector({
         )}
 
         {/* Scenario grid */}
-        {!loading && visible.length > 0 && (
+        {!loading && !fetchErr && visible.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-enter">
             {visible.map(s => {
               const diff    = DIFF[s.difficulty_level] ?? DIFF.easy
