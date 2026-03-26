@@ -230,6 +230,26 @@ async def test_websocket_journey(token: str, scenario_id: int) -> None:
 
             check("role=solo confirmed in state", role_confirmed)
 
+            # ── 6b. Begin simulation ─────────────────────────────────────
+            # Phase must advance briefing → deciding before make_choice.
+            # game.py rejects make_choice calls while phase == "briefing".
+            await ws.send(json.dumps({"type": "begin"}))
+            begin_ok = False
+            for _ in range(5):
+                raw = await asyncio.wait_for(ws.recv(), timeout=8)
+                msg = json.loads(raw)
+                t   = msg.get("type")
+                if t == "state_sync":
+                    phase = msg.get("state", {}).get("phase", "")
+                    if phase == "deciding":
+                        begin_ok = True
+                        current_stage = msg.get("state", {}).get(
+                            "current_stage_id", current_stage)
+                        break
+                elif t == "error":
+                    break
+            check("simulation begun (phase=deciding)", begin_ok)
+
             # ── 7. Make a choice ──────────────────────────────────────────
             print("\n[7] Submit choice (option 0)")
             await ws.send(json.dumps({
@@ -268,7 +288,7 @@ async def test_websocket_journey(token: str, scenario_id: int) -> None:
                 raw = await asyncio.wait_for(ws.recv(), timeout=5)
                 msg = json.loads(raw)
                 check("clean server response to save_exit",
-                      msg.get("type") in ("saved", "game_state", "game_end"),
+                      msg.get("type") in ("session_saved", "game_state", "game_end"),
                       f"got type={msg.get('type')!r}")
             except asyncio.TimeoutError:
                 # Server may close the connection silently — that's fine
