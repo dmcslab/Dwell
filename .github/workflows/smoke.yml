@@ -1,0 +1,101 @@
+# .github/workflows/smoke.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# Dwell — CI Smoke Test
+#
+# Runs on every push to main and every PR targeting main.
+# Boots the full Docker Compose stack, then exercises the complete user journey:
+#   health → login → list scenarios → start session → WebSocket connect →
+#   set role → submit a choice → confirm valid response → save_exit
+#
+# Goal: catch first-run failures across OS / environment changes before
+# they reach real users.  Target: ≥95% first-run success rate (Phase 0).
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Smoke Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke:
+    name: Full stack smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Python (for the test script only) ────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: pip install requests websockets
+
+      # ── 3. Write a minimal .env so the backend starts cleanly ──────────────
+      #   • SKIP_SEED_UPDATE=false  → seed runs once and creates scenarios
+      #   • SECRET_KEY fixed        → deterministic JWT between workers
+      - name: Write backend .env for CI
+        run: |
+          cat > backend/.env << 'EOF'
+          DATABASE_URL=postgresql+asyncpg://dwell:dwell@db:5432/dwell
+          REDIS_URL=redis://redis:6379/0
+          SECRET_KEY=ci-smoke-test-fixed-key-do-not-use-in-prod-aabbcc
+          ALLOWED_ORIGINS=*
+          SKIP_SEED_UPDATE=false
+          EOF
+
+      # ── 4. Build and start the stack ───────────────────────────────────────
+      - name: Build images
+        run: docker compose build
+
+      - name: Start stack
+        run: docker compose up -d
+
+      # ── 5. Wait for services to be ready ───────────────────────────────────
+      #   Poll /health (via Vite proxy on :5173) with retries.
+      #   Vite starts in dev mode; backend needs DB + Redis; seed takes ~10s.
+      #   We allow up to 120s total.
+      - name: Wait for stack to be healthy
+        run: |
+          echo "Waiting for http://localhost:5173/health ..."
+          for i in $(seq 1 40); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              http://localhost:5173/health 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✓ Stack healthy after $((i * 3))s"
+              exit 0
+            fi
+            echo "  attempt $i/40 — got HTTP $STATUS, retrying in 3s..."
+            sleep 3
+          done
+          echo "✗ Stack did not become healthy within 120s"
+          docker compose logs --tail=50
+          exit 1
+
+      # ── 6. Run the smoke test ──────────────────────────────────────────────
+      - name: Run smoke test
+        run: python tests/smoke_test.py
+
+      # ── 7. Always dump logs on failure ────────────────────────────────────
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo "=== backend ==="
+          docker compose logs backend --tail=80
+          echo "=== frontend ==="
+          docker compose logs frontend --tail=40
+          echo "=== db ==="
+          docker compose logs db --tail=30
+
+      # ── 8. Tear down ───────────────────────────────────────────────────────
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
