@@ -19,9 +19,9 @@ on:
   pull_request:
     branches: [main]
 
-# Opt into Node.js 24 now to suppress deprecation warnings from actions
-# that still ship with Node 20 (checkout, setup-python).
-# Remove this block after June 2026 when Node 24 becomes the default.
+# Opt into Node.js 24 now to suppress deprecation warnings from
+# actions/checkout and actions/setup-python (still ship with Node 20).
+# Remove after June 2026 when Node 24 becomes the default runner.
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -45,8 +45,8 @@ jobs:
       - name: Install test dependencies
         run: pip install requests websockets
 
-      # ── 3. Write a minimal .env so the backend starts cleanly ──────────────
-      #   • SKIP_SEED_UPDATE=false  → seed runs once and creates scenarios
+      # ── 3. Write backend .env ──────────────────────────────────────────────
+      #   • SKIP_SEED_UPDATE=false  → seed runs and creates all scenarios
       #   • SECRET_KEY fixed        → deterministic JWT between workers
       - name: Write backend .env for CI
         run: |
@@ -58,39 +58,54 @@ jobs:
           SKIP_SEED_UPDATE=false
           EOF
 
-      # ── 4. Build and start the stack ───────────────────────────────────────
+      # ── 4. Write compose override — expose backend port for health check ───
+      #   Vite only proxies /api/* so localhost:5173/health returns HTML.
+      #   This override exposes port 8000 in CI so the smoke test can reach
+      #   the backend's /health endpoint directly. Does not affect prod.
+      - name: Write compose override for CI
+        run: |
+          cat > compose.override.yml << 'EOF'
+          services:
+            backend:
+              ports:
+                - "8000:8000"
+          EOF
+
+      # ── 5. Build and start the stack ───────────────────────────────────────
       - name: Build images
         run: docker compose build
 
       - name: Start stack
         run: docker compose up -d
 
-      # ── 5. Wait for services to be ready ───────────────────────────────────
-      #   Poll /health (via Vite proxy on :5173) with retries.
-      #   Vite starts in dev mode; backend needs DB + Redis; seed takes ~10s.
+      # ── 6. Wait for services to be ready ───────────────────────────────────
+      #   Poll backend /health directly on port 8000 (exposed via override).
+      #   Backend needs DB + Redis to start; seed_scenarios.py takes ~10s.
       #   We allow up to 120s total.
       - name: Wait for stack to be healthy
         run: |
-          echo "Waiting for http://localhost:5173/health ..."
+          echo "Waiting for http://localhost:8000/health ..."
           for i in $(seq 1 40); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              http://localhost:5173/health 2>/dev/null || echo "000")
+              http://localhost:8000/health 2>/dev/null || echo "000")
             if [ "$STATUS" = "200" ]; then
-              echo "✓ Stack healthy after $((i * 3))s"
+              echo "✓ Backend healthy after $((i * 3))s"
+              # Also wait briefly for Vite to finish starting before the test
+              sleep 5
               exit 0
             fi
             echo "  attempt $i/40 — got HTTP $STATUS, retrying in 3s..."
             sleep 3
           done
-          echo "✗ Stack did not become healthy within 120s"
+          echo "✗ Backend did not become healthy within 120s"
           docker compose logs --tail=50
           exit 1
 
-      # ── 6. Run the smoke test ──────────────────────────────────────────────
+      # ── 7. Run the smoke test ──────────────────────────────────────────────
       - name: Run smoke test
         run: python tests/smoke_test.py
 
-      # ── 7. Always dump logs on failure ────────────────────────────────────
+      # ── 8. Always dump logs on failure ────────────────────────────────────
       - name: Dump logs on failure
         if: failure()
         run: |
@@ -101,8 +116,7 @@ jobs:
           echo "=== db ==="
           docker compose logs db --tail=30
 
-      # ── 8. Tear down ───────────────────────────────────────────────────────
+      # ── 9. Tear down ───────────────────────────────────────────────────────
       - name: Tear down
         if: always()
         run: docker compose down -v
-        

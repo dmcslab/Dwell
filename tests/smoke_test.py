@@ -31,9 +31,10 @@ import time
 import requests
 import websockets
 
-BASE   = "http://localhost:5173"
-WS     = "ws://localhost:5173"
-ADMIN  = {"username": "admin", "password": "Dwell!Change123"}
+BASE    = "http://localhost:5173"
+WS      = "ws://localhost:5173"
+BACKEND = "http://localhost:8000"  # backend direct — exposed via compose.override.yml in CI
+ADMIN   = {"username": "admin", "password": "Dwell!Change123"}
 
 PASS = "✓"
 FAIL = "✗"
@@ -76,8 +77,14 @@ def _finish() -> None:
 
 def test_health() -> None:
     print("\n[1] Health endpoint")
-    r = requests.get(f"{BASE}/health", timeout=10)
-    require("GET /health → 200", r.status_code == 200,
+    # /health lives on the FastAPI backend. Vite only proxies /api/* so
+    # hitting localhost:5173/health returns Vite's HTML index, not JSON.
+    # In CI a compose.override.yml exposes port 8000 so we can reach the
+    # backend directly. Outside CI the same endpoint is reachable via the
+    # Vite proxy if /health is added to vite.config.ts — or skip and rely
+    # on the login step to confirm the backend is up.
+    r = requests.get(f"{BACKEND}/health", timeout=10)
+    require("GET /health → 200 (backend direct)", r.status_code == 200,
             f"got HTTP {r.status_code}")
     body = r.json()
     check("body contains status=ok",
