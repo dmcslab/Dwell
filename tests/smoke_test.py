@@ -31,9 +31,8 @@ import time
 import requests
 import websockets
 
-BASE    = "http://localhost:5173"
-WS      = "ws://localhost:5173"
-BACKEND = "http://localhost:8000"  # backend direct — exposed via compose.override.yml in CI
+BACKEND = "http://localhost:8000"  # REST calls go direct to backend (exposed via compose.override.yml)
+WS      = "ws://localhost:5173"    # WebSocket goes through Vite proxy (WS proxy configured in vite.config)
 ADMIN   = {"username": "admin", "password": "Dwell!Change123"}
 
 PASS = "✓"
@@ -95,7 +94,7 @@ def test_health() -> None:
 
 def test_login() -> str:
     print("\n[2] Admin login")
-    r = requests.post(f"{BASE}/api/v1/auth/login", json=ADMIN, timeout=10)
+    r = requests.post(f"{BACKEND}/api/v1/auth/login", json=ADMIN, timeout=10)
     require("POST /auth/login → 200", r.status_code == 200,
             f"got HTTP {r.status_code}: {r.text[:120]}")
     body = r.json()
@@ -112,7 +111,7 @@ def test_login() -> str:
 def test_scenarios(token: str) -> int:
     print("\n[3] Scenarios list")
     r = requests.get(
-        f"{BASE}/api/v1/scenarios/",
+        f"{BACKEND}/api/v1/scenarios/",
         headers={"Authorization": f"Bearer {token}"},
         timeout=10,
     )
@@ -136,7 +135,7 @@ def test_scenarios(token: str) -> int:
 def test_scenario_detail(token: str, scenario_id: int) -> None:
     print("\n[9] Scenario detail endpoint")
     r = requests.get(
-        f"{BASE}/api/v1/scenarios/{scenario_id}",
+        f"{BACKEND}/api/v1/scenarios/{scenario_id}",
         headers={"Authorization": f"Bearer {token}"},
         timeout=10,
     )
@@ -157,7 +156,7 @@ def test_scenario_detail(token: str, scenario_id: int) -> None:
 async def test_websocket_journey(token: str, scenario_id: int) -> None:
     print("\n[4] Start game session")
     r = requests.post(
-        f"{BASE}/api/v1/game/start/{scenario_id}",
+        f"{BACKEND}/api/v1/game/start/{scenario_id}",
         headers={"Authorization": f"Bearer {token}"},
         json={"team_name": "SmokeTest"},
         timeout=10,
