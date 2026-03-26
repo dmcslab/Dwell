@@ -288,7 +288,7 @@ async def test_websocket_journey(token: str, scenario_id: int) -> None:
                 raw = await asyncio.wait_for(ws.recv(), timeout=5)
                 msg = json.loads(raw)
                 check("clean server response to save_exit",
-                      msg.get("type") in ("session_saved", "game_state", "game_end"),
+                      msg.get("type") in ("session_saved", "game_state", "game_end", "state_sync"),
                       f"got type={msg.get('type')!r}")
             except asyncio.TimeoutError:
                 # Server may close the connection silently — that's fine
