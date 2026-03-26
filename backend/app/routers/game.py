@@ -28,6 +28,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.config import settings
+import hashlib as _hashlib
+import hmac    as _hmac
 from app.database import AsyncSessionFactory, get_redis
 from app.game.connection_manager import manager as ws_manager
 from app.game.logic import (
@@ -45,6 +47,24 @@ from app.models.models import GameSession, Scenario
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/game", tags=["game"])
 
+def _generate_join_token(session_id: str) -> str:
+    """HMAC-SHA256(secret, session_id) — first 32 hex chars (128-bit).
+
+    Deterministic: can be re-derived any time from the same session_id and
+    secret, so it needs no storage.  Because it is bound to the secret key it
+    cannot be forged by someone who only knows the session_id.
+    """
+    return _hmac.new(
+        settings.effective_secret_key.encode(),
+        session_id.encode(),
+        _hashlib.sha256,
+    ).hexdigest()[:32]
+
+
+def _verify_join_token(session_id: str, token: str) -> bool:
+    """Constant-time comparison to prevent timing attacks."""
+    expected = _generate_join_token(session_id)
+    return _hmac.compare_digest(expected, token)
 
 # ── Pydantic ──────────────────────────────────────────────────────────────────
 
@@ -118,9 +138,16 @@ async def start_session(scenario_id: int, body: StartRequest, request: Request):
         or request.headers.get("referer", "").rstrip("/")
         or settings.APP_BASE_URL
     ).rstrip("/")
-    share_link = f"{origin}/#/join/{session_id}"
-    return {"session_id": session_id, "share_link": share_link, "scenario_id": scenario_id,
-            "team_name": body.team_name, "state": initial_state}
+    join_token = _generate_join_token(session_id)
+    share_link = f"{origin}/#/join/{session_id}/{join_token}"
+    return {
+        "session_id": session_id,
+        "share_link": share_link,
+        "join_token": join_token,
+        "scenario_id": scenario_id,
+        "team_name": body.team_name,
+        "state": initial_state,
+    }
 
 
 # ── Join endpoints ────────────────────────────────────────────────────────────
@@ -149,8 +176,20 @@ async def join_session(session_id: str, body: JoinRequest):
 # ── WebSocket game loop ───────────────────────────────────────────────────────
 
 @router.websocket("/play/{session_id}")
-async def websocket_game(ws: WebSocket, session_id: str, name: str = Query(default="Player")):
+async def websocket_game(
+    ws:         WebSocket,
+    session_id: str,
+    name:       str = Query(default="Player"),
+    token:      str = Query(default=""),
+):
     await ws.accept()
+    if not _verify_join_token(session_id, token):
+        await ws.send_text(json.dumps({
+            "type":    "error",
+            "message": "Invalid or missing join token. Use the share link to join this session.",
+        }))
+        await ws.close(code=4401)
+        return
     client_id = str(_uuid.uuid4())[:8]
     redis     = await get_redis()
 

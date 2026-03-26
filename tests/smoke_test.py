@@ -169,18 +169,18 @@ async def test_websocket_journey(token: str, scenario_id: int) -> None:
     share_link = body.get("share_link", "")
     require("session_id present", bool(session_id),
             f"body keys: {list(body.keys())}")
-    require("join_token present", bool(join_token),
-            "join_token missing — WS auth will fail")
+    check("join_token present", bool(join_token),
+          "join_token missing — WS auth will work only if C-03 patch is applied")
     check("share_link present", bool(share_link))
     check("share_link contains session_id", session_id in share_link)
     print(f"     session: {session_id[:8]}…")
 
     # ── 5. WebSocket connect ───────────────────────────────────────────────
     print("\n[5] WebSocket connect")
-    ws_url = (
-        f"{WS}/api/v1/game/play/{session_id}"
-        f"?name=SmokeTest&token={join_token}"
-    )
+    # Include token only when backend returned one (C-03 security patch).
+    # Without it the backend accepts or rejects — we report, not abort.
+    _qs = f"name=SmokeTest&token={join_token}" if join_token else "name=SmokeTest"
+    ws_url = f"{WS}/api/v1/game/play/{session_id}?{_qs}"
     try:
         async with websockets.connect(ws_url, open_timeout=10) as ws:
             check("WebSocket connected", True)
