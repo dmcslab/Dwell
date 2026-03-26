@@ -185,11 +185,12 @@ async def test_websocket_journey(token: str, scenario_id: int) -> None:
         async with websockets.connect(ws_url, open_timeout=10) as ws:
             check("WebSocket connected", True)
 
-            # Expect game_state on connect
+            # Server sends "connected" as first message (see useWebSocketGame.ts).
+            # The game state lives in msg["state"] within that message.
             raw = await asyncio.wait_for(ws.recv(), timeout=10)
             msg = json.loads(raw)
-            check("initial message type=game_state",
-                  msg.get("type") == "game_state",
+            check("initial message type=connected",
+                  msg.get("type") == "connected",
                   f"got type={msg.get('type')!r}")
 
             state = msg.get("state", {})
@@ -204,19 +205,27 @@ async def test_websocket_journey(token: str, scenario_id: int) -> None:
 
             # ── 6. Set role ───────────────────────────────────────────────
             print("\n[6] Set role (solo)")
-            await ws.send(json.dumps({"type": "set_role", "role": "solo"}))
+            await ws.send(json.dumps({"type": "assign_role", "role": "solo"}))
 
-            # Drain messages until we see a game_state confirming the role
+            # Server sends "role_assigned" when a role is set (see useWebSocketGame.ts).
+            # Also accept "state_sync" which may arrive on concurrent events.
             role_confirmed = False
             for _ in range(5):
                 raw = await asyncio.wait_for(ws.recv(), timeout=8)
                 msg = json.loads(raw)
-                if msg.get("type") == "game_state":
+                t = msg.get("type")
+                if t == "role_assigned":
+                    # roles is a flat dict {client_id: role} on the message
+                    roles = msg.get("roles", {})
+                    if "solo" in roles.values():
+                        role_confirmed = True
+                        break
+                elif t == "state_sync":
                     roles = msg.get("state", {}).get("roles", {})
                     if "solo" in roles.values():
                         role_confirmed = True
                         break
-                elif msg.get("type") == "error":
+                elif t == "error":
                     break
 
             check("role=solo confirmed in state", role_confirmed)
@@ -234,7 +243,7 @@ async def test_websocket_journey(token: str, scenario_id: int) -> None:
                 raw = await asyncio.wait_for(ws.recv(), timeout=10)
                 msg = json.loads(raw)
                 t   = msg.get("type", "")
-                if t in ("choice_result", "game_state", "game_end"):
+                if t in ("choice_result", "game_state", "game_end", "state_sync"):
                     choice_received = True
                     if t == "choice_result":
                         check("choice_result has consequence",
