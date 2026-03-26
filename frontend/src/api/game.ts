@@ -5,7 +5,7 @@ export const gameApi = {
     api.post<{
       session_id:  string
       share_link:  string
-      join_token:  string   // HMAC token — required for WS connection
+      join_token:  string
       state:       unknown
     }>('/game/start/' + scenarioId, {
       team_name:   teamName,
@@ -30,4 +30,7 @@ export const gameApi = {
 
   getScenario: (scenarioId: number) =>
     api.get<import('../types/scenario').ScenarioFull>('/game/scenarios/' + scenarioId),
+
+  getScenarios: () =>
+    api.get<import('../types/scenario').ScenarioFull[]>('/game/scenarios'),
 }
