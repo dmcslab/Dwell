@@ -19,6 +19,12 @@ on:
   pull_request:
     branches: [main]
 
+# Opt into Node.js 24 now to suppress deprecation warnings from actions
+# that still ship with Node 20 (checkout, setup-python).
+# Remove this block after June 2026 when Node 24 becomes the default.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   smoke:
     name: Full stack smoke test
