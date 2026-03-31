@@ -20,6 +20,8 @@
 > **The name.** Dwell time is the number of days an attacker spends inside a network before detection. The average is measured in weeks. Every second of this simulation, that clock is ticking.
 
 ---
+**Live demo:** [playdwell.dmcslab.com](https://playdwell.dmcslab.com)
+---
 
 ## ⚡ Quick Start — No Configuration Needed
 
