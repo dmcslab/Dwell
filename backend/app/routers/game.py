@@ -121,18 +121,22 @@ async def start_session(scenario_id: int, body: StartRequest, request: Request):
         # user to pick IR Lead before they can begin.
         initial_state["participants"] = []
 
+        # Capture scenario attributes BEFORE commit — SQLAlchemy's default
+        # expire_on_commit=True expires all ORM objects on commit, and once
+        # the async-with block exits the session is closed. Accessing
+        # scenario.name after that raises DetachedInstanceError.
+        scenario_name = scenario.name
+
         gs = GameSession(session_id=session_id, scenario_id=scenario_id,
                          team_name=body.team_name or None, current_state=initial_state,
                          attempts_remaining=scenario.max_attempts)
         db.add(gs)
         # B5-5D: flush() → commit() — ensure GameSession row is persisted to DB.
-        # flush() only sends SQL within the transaction; without an explicit
-        # commit the row may be rolled back when the context manager exits.
         await db.commit()
 
     redis = await get_redis()
     await set_state(redis, session_id, initial_state)
-    await register_active_session(redis, session_id, scenario_id, scenario.name)
+    await register_active_session(redis, session_id, scenario_id, scenario_name)
 
     # Derive public URL from the request origin so share links work
     # correctly both locally and behind Cloudflare Tunnel / any proxy
