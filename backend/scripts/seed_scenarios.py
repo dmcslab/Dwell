@@ -2,7 +2,7 @@
 """
 scripts/seed_scenarios.py — v3 Complete IR Simulation Scenarios
 ----------------------------------------------------------------
-All 20 scenarios are analyst simulations following NIST SP 800-61r2.
+All 43 scenarios are analyst simulations following NIST SP 800-61r2.
 NO company names, years, or ransom amounts referenced.
 Each scenario is grounded in real ransomware TTPs from CISA/MITRE research.
 
@@ -2818,6 +2818,4671 @@ SCENARIOS.append({
         ]
     }
 })
+SCENARIOS.append({
+    "name": "Operation: Silent Domain Takeover",
+    "description": "An enterprise environment shows early signs of credential abuse and lateral movement leading to ransomware staging.",
+    "initial_prompt": "Multiple authentication alerts and unusual administrative actions have been observed across the network. Some systems are showing signs of remote access sessions outside normal hours. You are tasked with determining whether this is benign activity or the early stages of an attack.",
+    "difficulty_level": "medium",
+    "max_attempts": 3,
+    "scenario_structure": {
+        "ransomwareFamily": "LockBit 3.0 (AES-256 + RSA-2048 hybrid encryption)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Phishing → credential harvesting → VPN access → AD enumeration → privilege escalation → PsExec lateral movement → ransomware deployment",
+        "keyTTPs": [
+            "T1078 — Valid Accounts",
+            "T1021.002 — Remote Services: SMB/Windows Admin Shares",
+            "T1059 — Command and Scripting Interpreter",
+            "T1486 — Data Encrypted for Impact",
+            "T1087 — Account Discovery",
+            "T1562.001 — Impair Defenses: Disable Security Tools"
+        ],
+        "simulationContext": "A mid-sized enterprise with hybrid AD, VPN access, and EDR deployed on endpoints. Logging is centralized but not fully correlated. Backups exist but are connected to the domain.",
+        "roleHints": {
+            "network":  "Review VPN logs and unusual SMB traffic between endpoints.",
+            "endpoint": "Look for suspicious parent-child process chains and credential dumping activity.",
+            "ir_lead":  "Determine whether to escalate to containment early or continue investigation.",
+            "solo":     "Correlate authentication anomalies with endpoint behavior."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_sdt_preparation",
+                "irPhase": "Preparation",
+                "prompt": "You observe multiple successful VPN logins from geographically inconsistent locations using a single user account. What is your first action?",
+                "analystContext": "The account has administrative privileges and has not previously logged in from these regions.",
+                "networkContext": "VPN logs show simultaneous sessions from different IP ranges.",
+                "endpointContext": "No immediate alerts on the user's workstation.",
+                "irLeadContext": "This account could provide domain-wide access if compromised.",
+                "options": [
+                    {
+                        "actionText": "Disable the account immediately.",
+                        "isCorrect": False,
+                        "consequence": "The attacker shifts to another compromised account and continues activity unnoticed.",
+                        "nextStageId": "s1_sdt_detection",
+                        "technicalExplanation": "Immediate disabling without investigation may tip off the attacker. Threat actors often maintain multiple valid accounts (T1078), so containment without visibility can fail."
+                    },
+                    {
+                        "actionText": "Ignore the alert as a potential false positive.",
+                        "isCorrect": False,
+                        "consequence": "The attacker continues to expand access and escalate privileges.",
+                        "nextStageId": "s1_sdt_detection",
+                        "technicalExplanation": "Geographically inconsistent logins are a strong indicator of compromise. Ignoring such signals allows persistence and lateral movement to continue unchecked."
+                    },
+                    {
+                        "actionText": "Correlate VPN activity with authentication logs and endpoint behavior.",
+                        "isCorrect": True,
+                        "consequence": "You confirm anomalous logins and identify suspicious processes tied to the account.",
+                        "nextStageId": "s1_sdt_detection",
+                        "technicalExplanation": "Correlating multiple telemetry sources aligns with detection best practices and helps confirm account compromise before containment actions."
+                    },
+                    {
+                        "actionText": "Reset the account password without further investigation.",
+                        "isCorrect": False,
+                        "consequence": "The attacker maintains access through existing sessions and other credentials.",
+                        "nextStageId": "s1_sdt_detection",
+                        "technicalExplanation": "Password resets alone do not terminate active sessions or address lateral movement already underway."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_sdt_detection",
+                "irPhase": "Detection & Analysis",
+                "prompt": "You discover the account executed commands consistent with AD enumeration and credential dumping. What should you do next?",
+                "analystContext": "Tools resembling credential dumping utilities have been executed.",
+                "endpointContext": "LSASS access attempts detected on multiple hosts.",
+                "options": [
+                    {
+                        "actionText": "Isolate affected endpoints from the network.",
+                        "isCorrect": True,
+                        "consequence": "You prevent further credential harvesting and lateral movement.",
+                        "nextStageId": "s2_sdt_containment",
+                        "technicalExplanation": "Isolation limits attacker movement and stops ongoing credential theft (T1003). This is a key containment step."
+                    },
+                    {
+                        "actionText": "Wait to collect more logs before acting.",
+                        "isCorrect": False,
+                        "consequence": "The attacker escalates privileges and spreads to domain controllers.",
+                        "nextStageId": "s2_sdt_containment",
+                        "technicalExplanation": "Delaying containment during active credential dumping allows rapid privilege escalation and domain compromise."
+                    },
+                    {
+                        "actionText": "Reboot the affected machines.",
+                        "isCorrect": False,
+                        "consequence": "The attacker re-establishes persistence after reboot.",
+                        "nextStageId": "s2_sdt_containment",
+                        "technicalExplanation": "Reboots do not remove persistence mechanisms and may destroy volatile forensic evidence."
+                    },
+                    {
+                        "actionText": "Uninstall EDR to avoid alert noise.",
+                        "isCorrect": False,
+                        "consequence": "Visibility is lost and attacker actions go undetected.",
+                        "nextStageId": "s2_sdt_containment",
+                        "technicalExplanation": "Disabling security tools aligns with attacker TTPs (T1562.001) and removes critical detection capability."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_sdt_containment",
+                "irPhase": "Containment",
+                "prompt": "Despite initial containment, you detect lateral movement via SMB and remote execution tools. What is your next move?",
+                "analystContext": "Multiple hosts are communicating over admin shares using privileged accounts.",
+                "networkContext": "Spike in SMB traffic across internal subnets.",
+                "options": [
+                    {
+                        "actionText": "Block SMB traffic across the network immediately.",
+                        "isCorrect": False,
+                        "consequence": "Critical business operations are disrupted without fully stopping the attacker.",
+                        "nextStageId": "s3_sdt_eradication",
+                        "technicalExplanation": "Blindly blocking SMB can impact operations and does not address compromised credentials already in use."
+                    },
+                    {
+                        "actionText": "Deploy network-wide credential reset for privileged accounts.",
+                        "isCorrect": True,
+                        "consequence": "You disrupt attacker access and slow lateral movement.",
+                        "nextStageId": "s3_sdt_eradication",
+                        "technicalExplanation": "Resetting privileged credentials cuts off attacker access paths leveraging valid accounts (T1078)."
+                    },
+                    {
+                        "actionText": "Monitor activity without intervention.",
+                        "isCorrect": False,
+                        "consequence": "The attacker deploys ransomware across the environment.",
+                        "nextStageId": "s_sdt_ransomware_trigger",
+                        "technicalExplanation": "Failure to act during active lateral movement allows attackers to reach deployment phase (T1486).",
+                        "failBranchStageId": "s_sdt_ransomware_trigger"
+                    },
+                    {
+                        "actionText": "Shut down all servers immediately.",
+                        "isCorrect": False,
+                        "consequence": "Operations halt and recovery becomes more complex.",
+                        "nextStageId": "s3_sdt_eradication",
+                        "technicalExplanation": "Mass shutdowns can disrupt recovery processes and do not guarantee containment of attacker persistence."
+                    }
+                ]
+            },
+            {
+                "stageId": "s3_sdt_eradication",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "You have contained the spread. What is the best next step to ensure full eradication?",
+                "analystContext": "Persistence mechanisms may still exist in the environment.",
+                "options": [
+                    {
+                        "actionText": "Rebuild compromised systems and restore from clean backups.",
+                        "isCorrect": True,
+                        "consequence": "Systems are restored securely and attacker footholds are removed.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Full rebuild ensures removal of persistence and aligns with best practices for ransomware recovery."
+                    },
+                    {
+                        "actionText": "Return systems to users after antivirus scans.",
+                        "isCorrect": False,
+                        "consequence": "Hidden persistence allows attacker re-entry.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Antivirus scans alone cannot guarantee removal of advanced persistence mechanisms."
+                    },
+                    {
+                        "actionText": "Ignore unaffected systems.",
+                        "isCorrect": False,
+                        "consequence": "Undetected compromise spreads later.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Attackers often move stealthily; all systems must be validated."
+                    },
+                    {
+                        "actionText": "Restore backups without verifying integrity.",
+                        "isCorrect": False,
+                        "consequence": "Infected backups reintroduce malware.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Backups must be validated to ensure they are not compromised before restoration."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_sdt_ransomware_trigger",
+                "irPhase": "Containment",
+                "prompt": "Ransomware has begun encrypting multiple systems across the network. File shares are becoming inaccessible. What do you do immediately?",
+                "analystContext": "Encryption processes are active and spreading rapidly.",
+                "endpointContext": "High CPU usage and mass file modifications detected.",
+                "options": [
+                    {
+                        "actionText": "Disconnect infected systems from the network immediately.",
+                        "isCorrect": True,
+                        "consequence": "You slow the spread and preserve remaining systems.",
+                        "nextStageId": "s3_sdt_eradication",
+                        "technicalExplanation": "Immediate isolation limits encryption spread and is critical during active ransomware execution (T1486)."
+                    },
+                    {
+                        "actionText": "Pay the ransom immediately.",
+                        "isCorrect": False,
+                        "consequence": "Encryption continues and recovery is uncertain.",
+                        "nextStageId": "s3_sdt_eradication",
+                        "technicalExplanation": "Paying ransom does not guarantee decryption and does not stop active processes."
+                    },
+                    {
+                        "actionText": "Reboot all systems.",
+                        "isCorrect": False,
+                        "consequence": "Some systems continue encrypting after reboot.",
+                        "nextStageId": "s3_sdt_eradication",
+                        "technicalExplanation": "Ransomware often persists through reboot and may resume encryption."
+                    },
+                    {
+                        "actionText": "Wait for encryption to finish before acting.",
+                        "isCorrect": False,
+                        "consequence": "All systems become encrypted.",
+                        "nextStageId": "s3_sdt_eradication",
+                        "technicalExplanation": "Delaying action during encryption maximizes damage and data loss."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Correlating authentication and endpoint data is critical for early detection.",
+            "Credential compromise must be addressed with both containment and credential resets.",
+            "Rapid isolation is key to stopping ransomware spread."
+        ],
+        "referenceLinks": [
+            "https://attack.mitre.org/techniques/T1078/",
+            "https://attack.mitre.org/techniques/T1486/",
+            "https://www.cisa.gov/stopransomware"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Supply Chain Backdoor",
+    "description": "A trusted software update introduces a hidden backdoor that enables stealthy lateral movement and eventual ransomware deployment.",
+    "initial_prompt": "Your organization recently deployed a routine update to a widely used IT management platform. Days later, unusual outbound traffic patterns and authentication anomalies begin appearing across multiple servers. You are assigned to investigate whether this is benign activity or a coordinated compromise.",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "DarkSide (AES-256 + RSA encryption)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Compromised software update → backdoor beaconing → credential harvesting → AD lateral movement → privilege escalation → ransomware deployment",
+        "keyTTPs": [
+            "T1195 — Supply Chain Compromise",
+            "T1078 — Valid Accounts",
+            "T1021 — Remote Services",
+            "T1059 — Command and Scripting Interpreter",
+            "T1562.001 — Impair Defenses",
+            "T1486 — Data Encrypted for Impact"
+        ],
+        "simulationContext": "A large enterprise using centralized IT management software across all endpoints. EDR is deployed but alerts are high-volume. Backups are present but connected to the domain and not immutable.",
+        "roleHints": {
+            "network": "Analyze outbound beaconing patterns and DNS anomalies.",
+            "endpoint": "Check parent-child process chains tied to the management software.",
+            "ir_lead": "Assess risk of supply chain compromise and scope impact quickly.",
+            "solo": "Correlate update deployment timing with suspicious activity."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_scb_preparation",
+                "irPhase": "Preparation",
+                "prompt": "You notice unusual outbound traffic from multiple servers shortly after a software update. What is your first step?",
+                "analystContext": "Traffic is beaconing to previously unseen domains over HTTPS.",
+                "networkContext": "Consistent interval-based connections detected.",
+                "endpointContext": "Processes tied to the management software initiating connections.",
+                "irLeadContext": "This may impact all managed systems if compromised.",
+                "options": [
+                    {
+                        "actionText": "Immediately block all outbound traffic from affected servers.",
+                        "isCorrect": False,
+                        "consequence": "You disrupt operations but lose visibility into attacker behavior.",
+                        "nextStageId": "s1_scb_detection",
+                        "technicalExplanation": "Blocking prematurely removes telemetry needed to understand scope and attacker infrastructure."
+                    },
+                    {
+                        "actionText": "Correlate network traffic with endpoint process activity.",
+                        "isCorrect": True,
+                        "consequence": "You identify suspicious processes linked to the update.",
+                        "nextStageId": "s1_scb_detection",
+                        "technicalExplanation": "Correlation across telemetry sources helps confirm compromise and identify root cause."
+                    },
+                    {
+                        "actionText": "Ignore the activity as normal update behavior.",
+                        "isCorrect": False,
+                        "consequence": "Attacker maintains persistence and expands access.",
+                        "nextStageId": "s1_scb_detection",
+                        "technicalExplanation": "Beaconing behavior is a strong indicator of C2 activity and should not be ignored."
+                    },
+                    {
+                        "actionText": "Reboot all affected servers.",
+                        "isCorrect": False,
+                        "consequence": "Temporary disruption occurs but attacker persistence remains.",
+                        "nextStageId": "s1_scb_detection",
+                        "technicalExplanation": "Reboots do not remove persistence and may destroy volatile evidence."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_scb_detection",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Analysis shows the management software spawned unexpected command shells. What is your next action?",
+                "analystContext": "Suspicious scripts are running under trusted processes.",
+                "endpointContext": "Evidence of credential dumping attempts.",
+                "options": [
+                    {
+                        "actionText": "Isolate affected systems from the network.",
+                        "isCorrect": True,
+                        "consequence": "You limit further spread and credential harvesting.",
+                        "nextStageId": "s2_scb_containment",
+                        "technicalExplanation": "Isolation stops lateral movement and prevents further compromise."
+                    },
+                    {
+                        "actionText": "Uninstall the management software immediately.",
+                        "isCorrect": False,
+                        "consequence": "Attacker retains access through other persistence mechanisms.",
+                        "nextStageId": "s2_scb_containment",
+                        "technicalExplanation": "Removing software does not eliminate attacker footholds already established."
+                    },
+                    {
+                        "actionText": "Wait to confirm with vendor before acting.",
+                        "isCorrect": False,
+                        "consequence": "Attacker escalates privileges and spreads further.",
+                        "nextStageId": "s2_scb_containment",
+                        "technicalExplanation": "Delays in containment allow attacker progression."
+                    },
+                    {
+                        "actionText": "Disable EDR to reduce alert fatigue.",
+                        "isCorrect": False,
+                        "consequence": "Loss of visibility enables attacker actions.",
+                        "nextStageId": "s2_scb_containment",
+                        "technicalExplanation": "Disabling defenses aligns with attacker TTPs and is counterproductive."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_scb_containment",
+                "irPhase": "Containment",
+                "prompt": "Despite containment, signs of lateral movement using valid credentials appear. What do you do next?",
+                "analystContext": "Administrative accounts are being used across systems.",
+                "networkContext": "Increased internal RDP and SMB traffic.",
+                "options": [
+                    {
+                        "actionText": "Reset all privileged account credentials.",
+                        "isCorrect": True,
+                        "consequence": "You disrupt attacker access paths.",
+                        "nextStageId": "s3_scb_eradication",
+                        "technicalExplanation": "Credential resets remove attacker access leveraging valid accounts (T1078)."
+                    },
+                    {
+                        "actionText": "Monitor without intervention.",
+                        "isCorrect": False,
+                        "consequence": "Ransomware deployment begins.",
+                        "nextStageId": "s_scb_ransomware",
+                        "technicalExplanation": "Failure to act allows attackers to proceed to final stage.",
+                        "failBranchStageId": "s_scb_ransomware"
+                    },
+                    {
+                        "actionText": "Shut down the entire network.",
+                        "isCorrect": False,
+                        "consequence": "Operations halt but attacker persistence remains.",
+                        "nextStageId": "s3_scb_eradication",
+                        "technicalExplanation": "Mass shutdown is disruptive and not a targeted containment strategy."
+                    },
+                    {
+                        "actionText": "Block all internal traffic.",
+                        "isCorrect": False,
+                        "consequence": "Critical systems fail and attacker still retains footholds.",
+                        "nextStageId": "s3_scb_eradication",
+                        "technicalExplanation": "Overly broad controls disrupt business without fully addressing compromise."
+                    }
+                ]
+            },
+            {
+                "stageId": "s3_scb_eradication",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "You have contained the attacker. What is the best eradication step?",
+                "analystContext": "Backdoor persistence may still exist.",
+                "options": [
+                    {
+                        "actionText": "Rebuild affected systems from trusted images.",
+                        "isCorrect": True,
+                        "consequence": "You remove persistence and restore systems securely.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Rebuilding ensures complete removal of attacker artifacts."
+                    },
+                    {
+                        "actionText": "Run antivirus scans only.",
+                        "isCorrect": False,
+                        "consequence": "Hidden persistence may remain.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Advanced threats evade signature-based detection."
+                    },
+                    {
+                        "actionText": "Restore backups without validation.",
+                        "isCorrect": False,
+                        "consequence": "Compromised backups may reintroduce malware.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Backups must be verified before restoration."
+                    },
+                    {
+                        "actionText": "Return systems to production immediately.",
+                        "isCorrect": False,
+                        "consequence": "Risk of reinfection remains.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Systems must be validated before reuse."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_scb_ransomware",
+                "irPhase": "Containment",
+                "prompt": "Ransomware begins encrypting systems and spreading across the network. What is your immediate response?",
+                "analystContext": "Multiple systems are actively encrypting files.",
+                "endpointContext": "High CPU usage and file modifications detected.",
+                "options": [
+                    {
+                        "actionText": "Disconnect infected systems immediately.",
+                        "isCorrect": True,
+                        "consequence": "Spread is slowed and remaining systems are preserved.",
+                        "nextStageId": "s3_scb_eradication",
+                        "technicalExplanation": "Isolation is critical to stop ransomware propagation."
+                    },
+                    {
+                        "actionText": "Wait for encryption to finish.",
+                        "isCorrect": False,
+                        "consequence": "All systems become encrypted.",
+                        "nextStageId": "s3_scb_eradication",
+                        "technicalExplanation": "Delays increase damage."
+                    },
+                    {
+                        "actionText": "Pay the ransom immediately.",
+                        "isCorrect": False,
+                        "consequence": "No guarantee of recovery and attack continues.",
+                        "nextStageId": "s3_scb_eradication",
+                        "technicalExplanation": "Payment does not stop active encryption."
+                    },
+                    {
+                        "actionText": "Reboot systems.",
+                        "isCorrect": False,
+                        "consequence": "Encryption resumes after reboot.",
+                        "nextStageId": "s3_scb_eradication",
+                        "technicalExplanation": "Ransomware often persists through reboot."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Supply chain compromises can impact all managed systems simultaneously.",
+            "Correlating telemetry sources is critical for early detection.",
+            "Credential resets and isolation are key to stopping lateral movement."
+        ],
+        "referenceLinks": [
+            "https://attack.mitre.org/techniques/T1195/",
+            "https://attack.mitre.org/techniques/T1078/",
+            "https://www.cisa.gov/stopransomware"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: VPN Foothold",
+    "description": "Compromised VPN credentials allow attackers to gain initial access and stage ransomware deployment.",
+    "initial_prompt": "Unusual VPN logins are detected from foreign IP addresses tied to an employee account. Shortly after, internal systems begin showing abnormal authentication behavior. You must determine if this is a compromised account or legitimate activity.",
+    "difficulty_level": "medium",
+    "max_attempts": 3,
+    "scenario_structure": {
+        "ransomwareFamily": "DarkSide (AES-256 + RSA encryption)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Credential stuffing → VPN access → internal reconnaissance → privilege escalation → ransomware deployment",
+        "keyTTPs": [
+            "T1078 — Valid Accounts",
+            "T1110 — Brute Force",
+            "T1021 — Remote Services",
+            "T1087 — Account Discovery",
+            "T1486 — Data Encrypted for Impact"
+        ],
+        "simulationContext": "A mid-sized enterprise with VPN access but no MFA enforcement. Logs are available but not actively monitored in real time.",
+        "roleHints": {
+            "network": "Check VPN logs and unusual login patterns.",
+            "endpoint": "Look for new processes spawned post-login.",
+            "ir_lead": "Decide how aggressively to contain the account.",
+            "solo": "Correlate login activity with endpoint actions."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_vpn_preparation",
+                "irPhase": "Preparation",
+                "prompt": "A user account shows multiple successful VPN logins from unusual locations. What is your first step?",
+                "analystContext": "The user has administrative access.",
+                "options": [
+                    {
+                        "actionText": "Correlate VPN logs with endpoint activity.",
+                        "isCorrect": True,
+                        "consequence": "You identify suspicious processes linked to the session.",
+                        "nextStageId": "s1_vpn_detection",
+                        "technicalExplanation": "Correlation helps confirm compromise before containment."
+                    },
+                    {
+                        "actionText": "Disable the account immediately.",
+                        "isCorrect": False,
+                        "consequence": "Attacker shifts to another account.",
+                        "nextStageId": "s1_vpn_detection",
+                        "technicalExplanation": "Premature action may alert attacker without full visibility."
+                    },
+                    {
+                        "actionText": "Ignore the alert.",
+                        "isCorrect": False,
+                        "consequence": "Attacker maintains access.",
+                        "nextStageId": "s1_vpn_detection",
+                        "technicalExplanation": "Ignoring anomalies allows persistence."
+                    },
+                    {
+                        "actionText": "Reset password only.",
+                        "isCorrect": False,
+                        "consequence": "Active sessions remain.",
+                        "nextStageId": "s1_vpn_detection",
+                        "technicalExplanation": "Password resets do not terminate sessions."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_vpn_detection",
+                "irPhase": "Detection & Analysis",
+                "prompt": "You confirm the account is executing reconnaissance commands. What next?",
+                "analystContext": "Commands include account and network enumeration.",
+                "options": [
+                    {
+                        "actionText": "Isolate affected systems.",
+                        "isCorrect": True,
+                        "consequence": "You limit attacker movement.",
+                        "nextStageId": "s2_vpn_containment",
+                        "technicalExplanation": "Isolation prevents lateral spread."
+                    },
+                    {
+                        "actionText": "Wait for more evidence.",
+                        "isCorrect": False,
+                        "consequence": "Attacker escalates privileges.",
+                        "nextStageId": "s2_vpn_containment",
+                        "technicalExplanation": "Delay enables escalation."
+                    },
+                    {
+                        "actionText": "Reboot systems.",
+                        "isCorrect": False,
+                        "consequence": "Attacker persistence remains.",
+                        "nextStageId": "s2_vpn_containment",
+                        "technicalExplanation": "Reboots do not remove persistence."
+                    },
+                    {
+                        "actionText": "Disable logging.",
+                        "isCorrect": False,
+                        "consequence": "Visibility is lost.",
+                        "nextStageId": "s2_vpn_containment",
+                        "technicalExplanation": "Removes detection capability."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_vpn_containment",
+                "irPhase": "Containment",
+                "prompt": "Lateral movement is detected using valid credentials. What do you do?",
+                "analystContext": "Multiple systems accessed via SMB.",
+                "options": [
+                    {
+                        "actionText": "Reset all privileged credentials.",
+                        "isCorrect": True,
+                        "consequence": "Access paths are disrupted.",
+                        "nextStageId": "s3_vpn_eradication",
+                        "technicalExplanation": "Removes attacker access."
+                    },
+                    {
+                        "actionText": "Monitor activity.",
+                        "isCorrect": False,
+                        "consequence": "Ransomware is deployed.",
+                        "nextStageId": "s_vpn_ransomware",
+                        "technicalExplanation": "Allows attack progression.",
+                        "failBranchStageId": "s_vpn_ransomware"
+                    },
+                    {
+                        "actionText": "Block all traffic.",
+                        "isCorrect": False,
+                        "consequence": "Business disruption.",
+                        "nextStageId": "s3_vpn_eradication",
+                        "technicalExplanation": "Overly broad action."
+                    },
+                    {
+                        "actionText": "Shut down servers.",
+                        "isCorrect": False,
+                        "consequence": "Operations halted.",
+                        "nextStageId": "s3_vpn_eradication",
+                        "technicalExplanation": "Not targeted containment."
+                    }
+                ]
+            },
+            {
+                "stageId": "s3_vpn_eradication",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "You have contained the attacker. What next?",
+                "analystContext": "Systems may still be compromised.",
+                "options": [
+                    {
+                        "actionText": "Rebuild systems from clean images.",
+                        "isCorrect": True,
+                        "consequence": "Threat is fully removed.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Ensures no persistence remains."
+                    },
+                    {
+                        "actionText": "Run antivirus only.",
+                        "isCorrect": False,
+                        "consequence": "Persistence may remain.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Insufficient for advanced threats."
+                    },
+                    {
+                        "actionText": "Restore backups blindly.",
+                        "isCorrect": False,
+                        "consequence": "Reinfection risk.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Backups must be validated."
+                    },
+                    {
+                        "actionText": "Resume operations immediately.",
+                        "isCorrect": False,
+                        "consequence": "Risk of reinfection.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Systems not verified."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_vpn_ransomware",
+                "irPhase": "Containment",
+                "prompt": "Ransomware is actively encrypting systems after delayed containment. What must you do now?",
+                "analystContext": "File shares are rapidly becoming unavailable.",
+                "options": [
+                    {
+                        "actionText": "Disconnect infected systems immediately.",
+                        "isCorrect": True,
+                        "consequence": "Spread is slowed.",
+                        "nextStageId": "s3_vpn_eradication",
+                        "technicalExplanation": "Isolation stops propagation."
+                    },
+                    {
+                        "actionText": "Wait for completion.",
+                        "isCorrect": False,
+                        "consequence": "Full encryption occurs.",
+                        "nextStageId": "s3_vpn_eradication",
+                        "technicalExplanation": "Delays worsen impact."
+                    },
+                    {
+                        "actionText": "Pay ransom.",
+                        "isCorrect": False,
+                        "consequence": "No guarantee of recovery.",
+                        "nextStageId": "s3_vpn_eradication",
+                        "technicalExplanation": "Does not stop attack."
+                    },
+                    {
+                        "actionText": "Reboot systems.",
+                        "isCorrect": False,
+                        "consequence": "Encryption resumes.",
+                        "nextStageId": "s3_vpn_eradication",
+                        "technicalExplanation": "Persistence remains."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "VPN access must enforce MFA.",
+            "Credential compromise requires immediate containment.",
+            "Rapid response prevents ransomware deployment."
+        ],
+        "referenceLinks": [
+            "https://attack.mitre.org/techniques/T1078/",
+            "https://attack.mitre.org/techniques/T1110/",
+            "https://www.cisa.gov/stopransomware"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Phishing to Domain Admin",
+    "description": "A phishing campaign leads to credential theft and rapid privilege escalation within the domain.",
+    "initial_prompt": "Several employees reported suspicious emails earlier in the day. Now, unusual login activity and administrative actions are being observed across multiple systems. You are tasked with determining if this is a phishing-related compromise.",
+    "difficulty_level": "medium",
+    "max_attempts": 3,
+    "scenario_structure": {
+        "ransomwareFamily": "Conti (AES-256 + RSA encryption)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Phishing email → credential harvesting → O365 login → privilege escalation → lateral movement → ransomware deployment",
+        "keyTTPs": [
+            "T1566 — Phishing",
+            "T1078 — Valid Accounts",
+            "T1087 — Account Discovery",
+            "T1021 — Remote Services",
+            "T1486 — Data Encrypted for Impact"
+        ],
+        "simulationContext": "Enterprise environment with cloud email and hybrid identity. MFA is inconsistently applied. EDR coverage exists but alert fatigue is high.",
+        "roleHints": {
+            "network": "Look for unusual outbound connections from endpoints after email interaction.",
+            "endpoint": "Check for browser credential harvesting or token theft.",
+            "ir_lead": "Assess scope of credential compromise quickly.",
+            "solo": "Correlate phishing reports with login anomalies."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_pda_preparation",
+                "irPhase": "Preparation",
+                "prompt": "Employees reported phishing emails and you now see unusual login activity. What is your first step?",
+                "analystContext": "Multiple accounts show logins from new locations.",
+                "options": [
+                    {
+                        "actionText": "Correlate phishing reports with authentication logs.",
+                        "isCorrect": True,
+                        "consequence": "You confirm compromised accounts linked to phishing.",
+                        "nextStageId": "s1_pda_detection",
+                        "technicalExplanation": "Correlation validates the attack vector and scope."
+                    },
+                    {
+                        "actionText": "Ignore the phishing reports.",
+                        "isCorrect": False,
+                        "consequence": "Attack progresses undetected.",
+                        "nextStageId": "s1_pda_detection",
+                        "technicalExplanation": "Phishing is a primary initial access vector (T1566)."
+                    },
+                    {
+                        "actionText": "Reset one affected password.",
+                        "isCorrect": False,
+                        "consequence": "Other accounts remain compromised.",
+                        "nextStageId": "s1_pda_detection",
+                        "technicalExplanation": "Partial response fails to address scope."
+                    },
+                    {
+                        "actionText": "Shut down email servers.",
+                        "isCorrect": False,
+                        "consequence": "Business disruption without containment.",
+                        "nextStageId": "s1_pda_detection",
+                        "technicalExplanation": "Overreaction without targeted response."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_pda_detection",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Compromised accounts are executing admin-level commands. What next?",
+                "analystContext": "Evidence of privilege escalation attempts.",
+                "options": [
+                    {
+                        "actionText": "Isolate affected accounts and systems.",
+                        "isCorrect": True,
+                        "consequence": "You limit attacker movement.",
+                        "nextStageId": "s2_pda_containment",
+                        "technicalExplanation": "Containment prevents further escalation."
+                    },
+                    {
+                        "actionText": "Wait for more alerts.",
+                        "isCorrect": False,
+                        "consequence": "Attacker gains domain admin.",
+                        "nextStageId": "s2_pda_containment",
+                        "technicalExplanation": "Delay enables escalation."
+                    },
+                    {
+                        "actionText": "Disable logging.",
+                        "isCorrect": False,
+                        "consequence": "Visibility lost.",
+                        "nextStageId": "s2_pda_containment",
+                        "technicalExplanation": "Removes detection capability."
+                    },
+                    {
+                        "actionText": "Reboot systems.",
+                        "isCorrect": False,
+                        "consequence": "Persistence remains.",
+                        "nextStageId": "s2_pda_containment",
+                        "technicalExplanation": "Does not remove attacker foothold."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_pda_containment",
+                "irPhase": "Containment",
+                "prompt": "Lateral movement using admin credentials is detected. What do you do?",
+                "analystContext": "Multiple systems accessed rapidly.",
+                "options": [
+                    {
+                        "actionText": "Reset all privileged credentials.",
+                        "isCorrect": True,
+                        "consequence": "Attacker access is disrupted.",
+                        "nextStageId": "s3_pda_eradication",
+                        "technicalExplanation": "Credential reset stops valid account abuse."
+                    },
+                    {
+                        "actionText": "Monitor activity only.",
+                        "isCorrect": False,
+                        "consequence": "Ransomware is deployed.",
+                        "nextStageId": "s_pda_ransomware",
+                        "technicalExplanation": "Allows progression to impact stage.",
+                        "failBranchStageId": "s_pda_ransomware"
+                    },
+                    {
+                        "actionText": "Block internet access.",
+                        "isCorrect": False,
+                        "consequence": "Internal spread continues.",
+                        "nextStageId": "s3_pda_eradication",
+                        "technicalExplanation": "Does not stop lateral movement."
+                    },
+                    {
+                        "actionText": "Shutdown endpoints.",
+                        "isCorrect": False,
+                        "consequence": "Operational disruption.",
+                        "nextStageId": "s3_pda_eradication",
+                        "technicalExplanation": "Not targeted containment."
+                    }
+                ]
+            },
+            {
+                "stageId": "s3_pda_eradication",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Threat contained. What ensures eradication?",
+                "analystContext": "Persistence may remain.",
+                "options": [
+                    {
+                        "actionText": "Rebuild compromised systems.",
+                        "isCorrect": True,
+                        "consequence": "Threat fully removed.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Rebuild ensures clean state."
+                    },
+                    {
+                        "actionText": "Run antivirus only.",
+                        "isCorrect": False,
+                        "consequence": "Persistence risk.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Not sufficient."
+                    },
+                    {
+                        "actionText": "Restore backups blindly.",
+                        "isCorrect": False,
+                        "consequence": "Reinfection risk.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Backups must be verified."
+                    },
+                    {
+                        "actionText": "Resume operations immediately.",
+                        "isCorrect": False,
+                        "consequence": "Risk remains.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Systems not validated."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_pda_ransomware",
+                "irPhase": "Containment",
+                "prompt": "Ransomware is spreading due to delayed action. What now?",
+                "analystContext": "Systems encrypting rapidly.",
+                "options": [
+                    {
+                        "actionText": "Disconnect infected systems.",
+                        "isCorrect": True,
+                        "consequence": "Spread slows.",
+                        "nextStageId": "s3_pda_eradication",
+                        "technicalExplanation": "Isolation limits damage."
+                    },
+                    {
+                        "actionText": "Wait.",
+                        "isCorrect": False,
+                        "consequence": "Full impact.",
+                        "nextStageId": "s3_pda_eradication",
+                        "technicalExplanation": "Delays worsen outcome."
+                    },
+                    {
+                        "actionText": "Pay ransom.",
+                        "isCorrect": False,
+                        "consequence": "No guarantee.",
+                        "nextStageId": "s3_pda_eradication",
+                        "technicalExplanation": "Not effective containment."
+                    },
+                    {
+                        "actionText": "Reboot systems.",
+                        "isCorrect": False,
+                        "consequence": "Encryption resumes.",
+                        "nextStageId": "s3_pda_eradication",
+                        "technicalExplanation": "Persistence remains."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Phishing is a leading initial access vector.",
+            "Credential compromise requires immediate response.",
+            "Rapid containment prevents ransomware."
+        ],
+        "referenceLinks": [
+            "https://attack.mitre.org/techniques/T1566/",
+            "https://attack.mitre.org/techniques/T1078/",
+            "https://www.cisa.gov/stopransomware"
+        ]
+    }
+})
+
+SCENARIOS.append({
+    "name": "Operation: Exposed RDP Gateway",
+    "description": "An exposed RDP service is brute-forced, leading to unauthorized access and ransomware staging.",
+    "initial_prompt": "Security monitoring detects repeated failed login attempts against an external-facing remote access service. Shortly after, a successful login occurs followed by unusual administrative activity. You are assigned to investigate potential compromise.",
+    "difficulty_level": "medium",
+    "max_attempts": 3,
+    "scenario_structure": {
+        "ransomwareFamily": "SamSam (RSA-2048 encryption)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "RDP brute force → valid login → privilege escalation → lateral movement → ransomware deployment",
+        "keyTTPs": [
+            "T1110 — Brute Force",
+            "T1078 — Valid Accounts",
+            "T1021.001 — Remote Services: RDP",
+            "T1087 — Account Discovery",
+            "T1486 — Data Encrypted for Impact"
+        ],
+        "simulationContext": "Organization with exposed RDP gateway and weak password policy. Logging is enabled but not actively monitored.",
+        "roleHints": {
+            "network": "Check inbound RDP connections and source IPs.",
+            "endpoint": "Look for new admin sessions and process activity.",
+            "ir_lead": "Determine scope of unauthorized access quickly.",
+            "solo": "Correlate login success with brute force attempts."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_rdp_preparation",
+                "irPhase": "Preparation",
+                "prompt": "Repeated failed RDP logins followed by a successful login are detected. What is your first step?",
+                "analystContext": "The login originates from an unfamiliar IP.",
+                "options": [
+                    {
+                        "actionText": "Correlate RDP logs with endpoint activity.",
+                        "isCorrect": True,
+                        "consequence": "You confirm suspicious actions after login.",
+                        "nextStageId": "s1_rdp_detection",
+                        "technicalExplanation": "Correlation confirms compromise and scope."
+                    },
+                    {
+                        "actionText": "Ignore the alert.",
+                        "isCorrect": False,
+                        "consequence": "Attacker remains undetected.",
+                        "nextStageId": "s1_rdp_detection",
+                        "technicalExplanation": "Brute force success is a strong compromise indicator."
+                    },
+                    {
+                        "actionText": "Block the IP immediately.",
+                        "isCorrect": False,
+                        "consequence": "Attacker switches IP and continues.",
+                        "nextStageId": "s1_rdp_detection",
+                        "technicalExplanation": "IP blocking alone is insufficient."
+                    },
+                    {
+                        "actionText": "Reboot the server.",
+                        "isCorrect": False,
+                        "consequence": "Persistence remains active.",
+                        "nextStageId": "s1_rdp_detection",
+                        "technicalExplanation": "Reboot does not remove compromise."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_rdp_detection",
+                "irPhase": "Detection & Analysis",
+                "prompt": "You observe administrative commands being executed via RDP. What next?",
+                "analystContext": "Commands include account enumeration.",
+                "options": [
+                    {
+                        "actionText": "Isolate the affected host.",
+                        "isCorrect": True,
+                        "consequence": "You limit attacker access.",
+                        "nextStageId": "s2_rdp_containment",
+                        "technicalExplanation": "Isolation stops further activity."
+                    },
+                    {
+                        "actionText": "Wait for confirmation.",
+                        "isCorrect": False,
+                        "consequence": "Attacker escalates privileges.",
+                        "nextStageId": "s2_rdp_containment",
+                        "technicalExplanation": "Delay allows escalation."
+                    },
+                    {
+                        "actionText": "Disable logs.",
+                        "isCorrect": False,
+                        "consequence": "Visibility lost.",
+                        "nextStageId": "s2_rdp_containment",
+                        "technicalExplanation": "Removes monitoring capability."
+                    },
+                    {
+                        "actionText": "Ignore activity.",
+                        "isCorrect": False,
+                        "consequence": "Attacker continues.",
+                        "nextStageId": "s2_rdp_containment",
+                        "technicalExplanation": "No action enables persistence."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_rdp_containment",
+                "irPhase": "Containment",
+                "prompt": "Lateral movement begins via RDP. What do you do?",
+                "analystContext": "Multiple systems accessed rapidly.",
+                "options": [
+                    {
+                        "actionText": "Reset all privileged credentials.",
+                        "isCorrect": True,
+                        "consequence": "Access paths disrupted.",
+                        "nextStageId": "s3_rdp_eradication",
+                        "technicalExplanation": "Stops valid account abuse."
+                    },
+                    {
+                        "actionText": "Monitor only.",
+                        "isCorrect": False,
+                        "consequence": "Ransomware deployed.",
+                        "nextStageId": "s_rdp_ransom",
+                        "technicalExplanation": "Allows attack progression.",
+                        "failBranchStageId": "s_rdp_ransom"
+                    },
+                    {
+                        "actionText": "Shutdown network.",
+                        "isCorrect": False,
+                        "consequence": "Business disruption.",
+                        "nextStageId": "s3_rdp_eradication",
+                        "technicalExplanation": "Not targeted."
+                    },
+                    {
+                        "actionText": "Block internet.",
+                        "isCorrect": False,
+                        "consequence": "Internal spread continues.",
+                        "nextStageId": "s3_rdp_eradication",
+                        "technicalExplanation": "Does not stop internal movement."
+                    }
+                ]
+            },
+            {
+                "stageId": "s3_rdp_eradication",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Containment achieved. What ensures eradication?",
+                "analystContext": "Systems may still be compromised.",
+                "options": [
+                    {
+                        "actionText": "Rebuild systems from clean images.",
+                        "isCorrect": True,
+                        "consequence": "Threat removed.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Ensures no persistence."
+                    },
+                    {
+                        "actionText": "Run AV only.",
+                        "isCorrect": False,
+                        "consequence": "Persistence risk.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Not sufficient."
+                    },
+                    {
+                        "actionText": "Restore backups blindly.",
+                        "isCorrect": False,
+                        "consequence": "Reinfection risk.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Must validate backups."
+                    },
+                    {
+                        "actionText": "Resume operations.",
+                        "isCorrect": False,
+                        "consequence": "Risk remains.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Not validated."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_rdp_ransom",
+                "irPhase": "Containment",
+                "prompt": "Ransomware is triggered after delayed response. What now?",
+                "analystContext": "Encryption spreading rapidly.",
+                "options": [
+                    {
+                        "actionText": "Disconnect infected systems.",
+                        "isCorrect": True,
+                        "consequence": "Spread slows.",
+                        "nextStageId": "s3_rdp_eradication",
+                        "technicalExplanation": "Isolation limits damage."
+                    },
+                    {
+                        "actionText": "Wait.",
+                        "isCorrect": False,
+                        "consequence": "Full impact.",
+                        "nextStageId": "s3_rdp_eradication",
+                        "technicalExplanation": "Delay worsens outcome."
+                    },
+                    {
+                        "actionText": "Pay ransom.",
+                        "isCorrect": False,
+                        "consequence": "No guarantee.",
+                        "nextStageId": "s3_rdp_eradication",
+                        "technicalExplanation": "Not containment."
+                    },
+                    {
+                        "actionText": "Reboot.",
+                        "isCorrect": False,
+                        "consequence": "Encryption resumes.",
+                        "nextStageId": "s3_rdp_eradication",
+                        "technicalExplanation": "Persistence remains."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "RDP exposure is high risk.",
+            "Brute force detection must trigger action.",
+            "Credential resets are critical."
+        ],
+        "referenceLinks": [
+            "https://attack.mitre.org/techniques/T1110/",
+            "https://attack.mitre.org/techniques/T1021/001/",
+            "https://www.cisa.gov/stopransomware"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Backup Destruction",
+    "description": "Attackers silently compromise backup infrastructure before launching ransomware to maximize impact.",
+    "initial_prompt": "Backup monitoring alerts indicate unusual deletion activity and configuration changes. At the same time, subtle authentication anomalies are appearing across administrative accounts. You are tasked with determining whether this is a misconfiguration or a coordinated attack.",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "LockBit 3.0 (AES-256 + RSA-2048)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Initial foothold → privilege escalation → backup system access → backup deletion → lateral movement → ransomware deployment",
+        "keyTTPs": [
+            "T1078 — Valid Accounts",
+            "T1485 — Data Destruction",
+            "T1490 — Inhibit System Recovery",
+            "T1021 — Remote Services",
+            "T1562.001 — Impair Defenses",
+            "T1486 — Data Encrypted for Impact"
+        ],
+        "simulationContext": "Large enterprise with centralized backup systems connected to the domain. Backups are not immutable. Privileged accounts are widely used.",
+        "roleHints": {
+            "network": "Look for connections to backup servers from unusual hosts.",
+            "endpoint": "Check for admin tools interacting with backup services.",
+            "ir_lead": "Decide whether to prioritize backup integrity or endpoint containment.",
+            "solo": "Correlate backup changes with authentication anomalies."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_bkd_preparation",
+                "irPhase": "Preparation",
+                "prompt": "Backup systems show deletion activity outside normal schedules. What is your first step?",
+                "analystContext": "Administrative credentials were used for these actions.",
+                "options": [
+                    {
+                        "actionText": "Investigate authentication logs tied to backup actions.",
+                        "isCorrect": True,
+                        "consequence": "You identify suspicious admin logins tied to deletion events.",
+                        "nextStageId": "s1_bkd_detection",
+                        "technicalExplanation": "Correlating access logs helps confirm unauthorized use of privileged accounts."
+                    },
+                    {
+                        "actionText": "Restore deleted backups immediately.",
+                        "isCorrect": False,
+                        "consequence": "Attacker continues deleting backups.",
+                        "nextStageId": "s1_bkd_detection",
+                        "technicalExplanation": "Restoration without containment allows continued destruction (T1490)."
+                    },
+                    {
+                        "actionText": "Ignore as maintenance activity.",
+                        "isCorrect": False,
+                        "consequence": "Backup loss continues unnoticed.",
+                        "nextStageId": "s1_bkd_detection",
+                        "technicalExplanation": "Unexpected backup deletion is a strong attack indicator."
+                    },
+                    {
+                        "actionText": "Shut down backup servers.",
+                        "isCorrect": False,
+                        "consequence": "Visibility lost and attacker pivots elsewhere.",
+                        "nextStageId": "s1_bkd_detection",
+                        "technicalExplanation": "Premature shutdown reduces forensic visibility."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_bkd_detection",
+                "irPhase": "Detection & Analysis",
+                "prompt": "You confirm unauthorized access to backup infrastructure. What next?",
+                "analystContext": "The same accounts are accessing multiple critical systems.",
+                "options": [
+                    {
+                        "actionText": "Reset privileged credentials immediately.",
+                        "isCorrect": True,
+                        "consequence": "You disrupt attacker access.",
+                        "nextStageId": "s2_bkd_containment",
+                        "technicalExplanation": "Credential reset cuts off attacker control using valid accounts."
+                    },
+                    {
+                        "actionText": "Wait for more evidence.",
+                        "isCorrect": False,
+                        "consequence": "Backups are fully destroyed.",
+                        "nextStageId": "s2_bkd_containment",
+                        "technicalExplanation": "Delay allows attacker to complete objectives."
+                    },
+                    {
+                        "actionText": "Disable logging to reduce noise.",
+                        "isCorrect": False,
+                        "consequence": "You lose visibility into attacker actions.",
+                        "nextStageId": "s2_bkd_containment",
+                        "technicalExplanation": "Disabling logs removes critical detection capability."
+                    },
+                    {
+                        "actionText": "Reboot backup servers.",
+                        "isCorrect": False,
+                        "consequence": "Persistence remains active.",
+                        "nextStageId": "s2_bkd_containment",
+                        "technicalExplanation": "Reboots do not remove attacker access."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_bkd_containment",
+                "irPhase": "Containment",
+                "prompt": "You observe lateral movement toward domain controllers. What is your next move?",
+                "analystContext": "Administrative sessions are spreading across critical infrastructure.",
+                "options": [
+                    {
+                        "actionText": "Segment and isolate critical infrastructure systems.",
+                        "isCorrect": True,
+                        "consequence": "You limit attacker movement to core systems.",
+                        "nextStageId": "s3_bkd_eradication",
+                        "technicalExplanation": "Segmentation limits lateral movement and protects high-value assets."
+                    },
+                    {
+                        "actionText": "Monitor activity without action.",
+                        "isCorrect": False,
+                        "consequence": "Ransomware is deployed with no backups available.",
+                        "nextStageId": "s_bkd_crisis",
+                        "technicalExplanation": "Failure to contain allows catastrophic impact.",
+                        "failBranchStageId": "s_bkd_crisis"
+                    },
+                    {
+                        "actionText": "Shutdown domain controllers.",
+                        "isCorrect": False,
+                        "consequence": "Operations halt and attacker persistence remains.",
+                        "nextStageId": "s3_bkd_eradication",
+                        "technicalExplanation": "Disruptive but ineffective containment."
+                    },
+                    {
+                        "actionText": "Block internet access.",
+                        "isCorrect": False,
+                        "consequence": "Internal spread continues.",
+                        "nextStageId": "s3_bkd_eradication",
+                        "technicalExplanation": "Does not stop internal lateral movement."
+                    }
+                ]
+            },
+            {
+                "stageId": "s3_bkd_eradication",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Containment achieved. Backups are partially intact. What is your next step?",
+                "analystContext": "Some backups may be compromised.",
+                "options": [
+                    {
+                        "actionText": "Validate backup integrity and rebuild systems from clean images.",
+                        "isCorrect": True,
+                        "consequence": "You recover systems safely.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Validation ensures backups are safe before restoration."
+                    },
+                    {
+                        "actionText": "Restore all backups immediately.",
+                        "isCorrect": False,
+                        "consequence": "Compromised backups reintroduce threats.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Backups must be verified."
+                    },
+                    {
+                        "actionText": "Run antivirus scans only.",
+                        "isCorrect": False,
+                        "consequence": "Persistence risk remains.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Not sufficient for eradication."
+                    },
+                    {
+                        "actionText": "Resume operations.",
+                        "isCorrect": False,
+                        "consequence": "Environment remains at risk.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Systems not fully validated."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_bkd_crisis",
+                "irPhase": "Containment",
+                "prompt": "Ransomware is deployed after backups are destroyed. No recovery points are available. What do you do?",
+                "analystContext": "Critical systems are encrypted and backups are unavailable.",
+                "options": [
+                    {
+                        "actionText": "Isolate infected systems immediately.",
+                        "isCorrect": True,
+                        "consequence": "You prevent further spread and stabilize environment.",
+                        "nextStageId": "s3_bkd_eradication",
+                        "technicalExplanation": "Isolation limits damage even without backups."
+                    },
+                    {
+                        "actionText": "Wait for encryption to complete.",
+                        "isCorrect": False,
+                        "consequence": "Total data loss.",
+                        "nextStageId": "s3_bkd_eradication",
+                        "technicalExplanation": "Delay worsens impact."
+                    },
+                    {
+                        "actionText": "Pay ransom immediately.",
+                        "isCorrect": False,
+                        "consequence": "No guaranteed recovery.",
+                        "nextStageId": "s3_bkd_eradication",
+                        "technicalExplanation": "Payment is not reliable."
+                    },
+                    {
+                        "actionText": "Reboot systems.",
+                        "isCorrect": False,
+                        "consequence": "Encryption resumes.",
+                        "nextStageId": "s3_bkd_eradication",
+                        "technicalExplanation": "Persistence remains."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Backup systems are high-value targets.",
+            "Immutable backups are critical for ransomware resilience.",
+            "Credential compromise can lead to full recovery denial."
+        ],
+        "referenceLinks": [
+            "https://attack.mitre.org/techniques/T1490/",
+            "https://attack.mitre.org/techniques/T1485/",
+            "https://www.cisa.gov/stopransomware"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Yahoo Account Compromise",
+    "description": "Investigate a widespread credential theft campaign affecting user accounts through phishing and reused passwords.",
+    "initial_prompt": "Your team receives alerts about multiple account logins from unusual locations and devices. Users report suspicious emails prompting credential submission. You need to determine the extent of compromise and stop further account misuse.",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "Credential Theft / Phishing (No encryption)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Phishing email → credential harvesting → password reuse → suspicious logins → account compromise",
+        "keyTTPs": [
+            "T1566.001 — Spearphishing Attachment",
+            "T1078 — Valid Accounts",
+            "T1110.003 — Password Spraying",
+            "T1071.001 — Application Layer Protocol: Web Protocols"
+        ],
+        "simulationContext": "Large email service provider with cloud-hosted infrastructure, AD authentication, and SIEM correlation. Multi-region user base; EDR and endpoint telemetry enabled. Some users report account lockouts.",
+        "roleHints": {
+            "network": "Review firewall/proxy logs for external IP login anomalies and geolocation patterns.",
+            "endpoint": "Investigate workstation processes communicating with suspicious domains and potential credential dumps.",
+            "ir_lead": "Decide containment strategy prioritizing critical accounts while minimizing user disruption.",
+            "solo": "Use SIEM correlations between login anomalies and phishing alerts to identify compromised accounts."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_yahoo_initial",
+                "irPhase": "Preparation",
+                "prompt": "You start by reviewing alerts of abnormal login activity. What is your first action?",
+                "analystContext": "SIEM shows multiple failed logins from unusual IPs. Some users report receiving phishing emails.",
+                "networkContext": "Firewall logs show repeated access attempts from foreign IPs outside normal working hours.",
+                "endpointContext": "EDR detects processes attempting network connections to suspicious domains.",
+                "irLeadContext": "Management expects rapid initial assessment to prevent further compromise.",
+                "options": [
+                    {
+                        "actionText": "Ignore alerts, assume users made mistakes logging in.",
+                        "isCorrect": False,
+                        "consequence": "Attackers continue using stolen credentials; more accounts are compromised.",
+                        "nextStageId": "s1_yahoo_identify",
+                        "technicalExplanation": "Ignoring anomalies allows T1078 (Valid Accounts) exploitation and continued lateral movement."
+                    },
+                    {
+                        "actionText": "Review SIEM login events and correlate with phishing alerts.",
+                        "isCorrect": True,
+                        "consequence": "Suspicious logins and phishing activity are identified, providing initial compromise mapping.",
+                        "nextStageId": "s1_yahoo_identify",
+                        "technicalExplanation": "Correlating SIEM events with phishing alerts detects T1566.001 activity and identifies affected accounts."
+                    },
+                    {
+                        "actionText": "Reset all passwords immediately without analysis.",
+                        "isCorrect": False,
+                        "consequence": "Operational disruption occurs; accounts reset but attacker activity is partially unknown.",
+                        "nextStageId": "s1_yahoo_identify",
+                        "technicalExplanation": "Immediate resets without investigation may mitigate compromise but fail to identify attack scope."
+                    },
+                    {
+                        "actionText": "Run AV scans across endpoints without reviewing logs.",
+                        "isCorrect": False,
+                        "consequence": "Malware may be detected, but credential theft continues unnoticed.",
+                        "nextStageId": "s1_yahoo_identify",
+                        "technicalExplanation": "AV alone does not detect stolen credentials in transit; SIEM correlation is required."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_yahoo_identify",
+                "irPhase": "Detection & Analysis",
+                "prompt": "SIEM confirms phishing and credential misuse. Which containment step do you take?",
+                "analystContext": "Multiple accounts compromised. AD logs show logins from foreign IPs. Phishing domains detected.",
+                "networkContext": "Firewall/proxy logs indicate repeated suspicious logins.",
+                "endpointContext": "EDR shows lateral movement attempts from compromised endpoints.",
+                "irLeadContext": "Management wants an urgent plan to stop ongoing account exfiltration.",
+                "options": [
+                    {
+                        "actionText": "Force all users to reset passwords and enable MFA.",
+                        "isCorrect": True,
+                        "consequence": "Compromised credentials are rendered useless; lateral movement blocked.",
+                        "nextStageId": "s2_yahoo_remediate",
+                        "technicalExplanation": "Password reset plus MFA mitigates T1078 and prevents further attacker access."
+                    },
+                    {
+                        "actionText": "Block phishing domains in proxy only, leave credentials unchanged.",
+                        "isCorrect": False,
+                        "consequence": "New phishing blocked but existing compromised credentials still valid.",
+                        "nextStageId": "s2_yahoo_remediate",
+                        "technicalExplanation": "Blocking domains does not stop T1078 credential replay."
+                    },
+                    {
+                        "actionText": "Shut down the email system entirely.",
+                        "isCorrect": False,
+                        "consequence": "Business operations halt, attacker still has stolen credentials.",
+                        "nextStageId": "s2_yahoo_remediate",
+                        "technicalExplanation": "Full shutdown is disruptive and not required; targeted containment is preferred."
+                    },
+                    {
+                        "actionText": "Ignore the alerts and continue monitoring.",
+                        "isCorrect": False,
+                        "consequence": "Attack continues; triggers branch stage.",
+                        "nextStageId": "s_yahoo_crisis",
+                        "technicalExplanation": "Inaction allows attackers to escalate; fails to mitigate T1110.003.",
+                        "failBranchStageId": "s_yahoo_crisis"
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_yahoo_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Remediation actions taken. How do you validate containment?",
+                "analystContext": "No unusual logins in AD; phishing attempts continue to be blocked.",
+                "networkContext": "Firewall logs normal; no external suspicious activity.",
+                "endpointContext": "EDR shows no abnormal processes.",
+                "irLeadContext": "Confirm business can resume safely.",
+                "options": [
+                    {
+                        "actionText": "Verify endpoint scans, SIEM alerts, and user logins.",
+                        "isCorrect": True,
+                        "consequence": "Remediation validated; safe to resume operations.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Combining endpoint verification and SIEM ensures full eradication and mitigation of T1566.001 attacks."
+                    },
+                    {
+                        "actionText": "Assume remediation succeeded based on AD logs alone.",
+                        "isCorrect": False,
+                        "consequence": "Residual compromise may persist.",
+                        "nextStageId": None,
+                        "technicalExplanation": "AD logs alone are insufficient to confirm attacker activity removal."
+                    },
+                    {
+                        "actionText": "Delete emails older than 30 days.",
+                        "isCorrect": False,
+                        "consequence": "Does not mitigate stolen credentials.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Credential theft persists despite old email deletion."
+                    },
+                    {
+                        "actionText": "Disconnect network entirely.",
+                        "isCorrect": False,
+                        "consequence": "Operational disruption; containment already effective.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Excessive action; targeted containment sufficient."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_yahoo_crisis",
+                "irPhase": "Containment",
+                "prompt": "Ignoring alerts allowed attackers to exfiltrate accounts. What now?",
+                "analystContext": "SIEM shows ongoing suspicious logins; internal apps accessed.",
+                "networkContext": "Firewall shows foreign IP login attempts.",
+                "endpointContext": "EDR detects lateral movement on workstations.",
+                "irLeadContext": "Management demands immediate containment.",
+                "options": [
+                    {
+                        "actionText": "Immediately reset all compromised accounts and enforce MFA.",
+                        "isCorrect": True,
+                        "consequence": "Attack access terminated; lateral movement blocked.",
+                        "nextStageId": "s2_yahoo_remediate",
+                        "technicalExplanation": "Credential reset plus MFA mitigates T1078 attacks."
+                    },
+                    {
+                        "actionText": "Monitor accounts 24 more hours.",
+                        "isCorrect": False,
+                        "consequence": "More accounts compromised.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Delay allows further exploitation."
+                    },
+                    {
+                        "actionText": "Block phishing domains only.",
+                        "isCorrect": False,
+                        "consequence": "Attackers still use stolen credentials.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Domain blocking does not invalidate credentials."
+                    },
+                    {
+                        "actionText": "Disconnect all users from network.",
+                        "isCorrect": False,
+                        "consequence": "Operations disrupted; attacker still has credentials.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Extreme network shutdown is disruptive and unnecessary."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Early SIEM correlation with phishing alerts is critical.",
+            "Password resets with MFA block attacker lateral movement.",
+            "Validation across SIEM, endpoints, and AD ensures remediation."
+        ],
+        "referenceLinks": [
+            "https://attack.mitre.org/techniques/T1078/",
+            "https://attack.mitre.org/techniques/T1566/1/",
+            "https://www.cisa.gov/news-events/news/mitigating-phishing-and-credential-theft"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Media Studio Data Breach",
+    "description": "Investigate a destructive attack on a media studio's network that resulted in data exfiltration and system outages.",
+    "initial_prompt": "Your SOC receives alerts of unusual network activity and multiple domain controller anomalies. Internal reports indicate file deletion on shared drives and employee access issues. Your team must determine the origin and contain the attack before more data is lost.",
+    "difficulty_level": "medium",
+    "max_attempts": 3,
+    "scenario_structure": {
+        "ransomwareFamily": "Wiper Malware / Destructive Attack (No ransomware encryption)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Spear-phishing → malware install → domain compromise → lateral movement → data destruction/exfiltration",
+        "keyTTPs": [
+            "T1566.001 — Spearphishing Attachment",
+            "T1078 — Valid Accounts",
+            "T1486 — Data Encrypted for Impact",
+            "T1071.001 — Application Layer Protocol: Web Protocols",
+            "T1005 — Data from Local System"
+        ],
+        "simulationContext": "Large entertainment studio with hybrid on-prem AD and cloud storage. EDR and SIEM deployed, but backup procedures are partially outdated. Multiple high-value intellectual property shares are affected.",
+        "roleHints": {
+            "network": "Look for suspicious outbound traffic, unusual VPN usage, and lateral SMB connections.",
+            "endpoint": "Identify processes writing to multiple file shares or deleting critical documents.",
+            "ir_lead": "Determine priorities: protect IP, contain threat, and minimize operational disruption.",
+            "solo": "Correlate SIEM alerts with endpoint logs to locate the malware and affected accounts."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_sony_initial",
+                "irPhase": "Preparation",
+                "prompt": "Initial SIEM alerts show abnormal login patterns and system anomalies. What is your first move?",
+                "analystContext": "Multiple admin accounts show failed logins followed by successful logins from unusual IPs.",
+                "networkContext": "Firewall logs show unusual SMB connections between WS and SRV-File01.",
+                "endpointContext": "EDR flags new processes executing on multiple workstations.",
+                "irLeadContext": "Management demands rapid assessment to prevent further data destruction.",
+                "options": [
+                    {
+                        "actionText": "Ignore alerts, assume user error.",
+                        "isCorrect": False,
+                        "consequence": "Malware spreads further; critical files deleted.",
+                        "nextStageId": "s1_sony_identify",
+                        "technicalExplanation": "Ignoring anomalies allows T1078 and T1486 activity to continue unchecked."
+                    },
+                    {
+                        "actionText": "Review SIEM and endpoint alerts for compromised accounts and unusual file operations.",
+                        "isCorrect": True,
+                        "consequence": "Malware activity identified, compromised accounts mapped, and affected shares highlighted.",
+                        "nextStageId": "s1_sony_identify",
+                        "technicalExplanation": "Correlation of SIEM and endpoint telemetry uncovers T1566.001 and lateral movement patterns."
+                    },
+                    {
+                        "actionText": "Disconnect all users immediately from the network.",
+                        "isCorrect": False,
+                        "consequence": "Operations disrupted; malware still active on endpoints.",
+                        "nextStageId": "s1_sony_identify",
+                        "technicalExplanation": "Extreme measures disrupt operations without locating malware or compromised accounts."
+                    },
+                    {
+                        "actionText": "Run full AV scans on random endpoints.",
+                        "isCorrect": False,
+                        "consequence": "Scans slow response; malware already exfiltrating data.",
+                        "nextStageId": "s1_sony_identify",
+                        "technicalExplanation": "AV alone may not detect wiper malware or exfiltration; correlation with SIEM is required."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_sony_identify",
+                "irPhase": "Detection & Analysis",
+                "prompt": "You have identified malware on multiple hosts and signs of lateral movement. What containment action should you take?",
+                "analystContext": "EDR shows new process execution on critical servers. SIEM shows file deletions and unusual outbound traffic.",
+                "networkContext": "Firewall logs show external exfiltration attempts to unknown IPs.",
+                "endpointContext": "WS-FIN-04 and SRV-File01 show mass file deletions.",
+                "irLeadContext": "Management prioritizes protecting IP and restoring operational systems.",
+                "options": [
+                    {
+                        "actionText": "Isolate affected hosts from the network and reset compromised accounts.",
+                        "isCorrect": True,
+                        "consequence": "Malware contained; lateral movement stopped; accounts secured.",
+                        "nextStageId": "s2_sony_remediate",
+                        "technicalExplanation": "Isolation plus account reset mitigates T1078 and halts T1486 destructive activity."
+                    },
+                    {
+                        "actionText": "Block outbound traffic only.",
+                        "isCorrect": False,
+                        "consequence": "Exfiltration may be blocked, but malware continues deleting local files.",
+                        "nextStageId": "s2_sony_remediate",
+                        "technicalExplanation": "Partial network blocking insufficient; attacker maintains local destruction."
+                    },
+                    {
+                        "actionText": "Shut down all servers.",
+                        "isCorrect": False,
+                        "consequence": "Operations disrupted; malware persistence unclear.",
+                        "nextStageId": "s2_sony_remediate",
+                        "technicalExplanation": "Full shutdown is excessive and operationally costly."
+                    },
+                    {
+                        "actionText": "Continue monitoring without action.",
+                        "isCorrect": False,
+                        "consequence": "Data destruction escalates; triggers crisis stage.",
+                        "nextStageId": "s_sony_crisis",
+                        "technicalExplanation": "Inaction allows malware to fully destroy data.",
+                        "failBranchStageId": "s_sony_crisis"
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_sony_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Malware is contained. How do you verify all systems are clean?",
+                "analystContext": "EDR shows no active malicious processes; SIEM alerts have dropped.",
+                "networkContext": "No unusual external connections observed.",
+                "endpointContext": "Workstations and servers scanned; file shares restored from backups.",
+                "irLeadContext": "Confirm IP protection and safe resumption of production workflows.",
+                "options": [
+                    {
+                        "actionText": "Validate endpoint scans, SIEM alerts, and backups before resuming operations.",
+                        "isCorrect": True,
+                        "consequence": "All systems verified; safe recovery confirmed.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Cross-verification ensures T1486 threats eradicated and IP secure."
+                    },
+                    {
+                        "actionText": "Assume remediation succeeded after backup restoration only.",
+                        "isCorrect": False,
+                        "consequence": "Residual malware may persist on endpoints.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Backups alone do not verify endpoint integrity."
+                    },
+                    {
+                        "actionText": "Delete all logs to remove traces.",
+                        "isCorrect": False,
+                        "consequence": "Forensic data lost; attack scope unclear.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Deleting logs hinders post-incident analysis."
+                    },
+                    {
+                        "actionText": "Reopen network connections immediately without verification.",
+                        "isCorrect": False,
+                        "consequence": "Potential undetected malware remains active.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Skipping verification risks further destruction."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_sony_crisis",
+                "irPhase": "Containment",
+                "prompt": "Delaying containment allowed malware to delete additional files and exfiltrate data. What is your immediate action?",
+                "analystContext": "File servers show mass deletion; SIEM shows outbound data transfer to unknown IPs.",
+                "networkContext": "Firewall logs multiple blocked outbound connections.",
+                "endpointContext": "EDR shows ongoing malicious process execution.",
+                "irLeadContext": "Management demands urgent mitigation to prevent further IP loss.",
+                "options": [
+                    {
+                        "actionText": "Immediately isolate affected hosts and reset admin accounts.",
+                        "isCorrect": True,
+                        "consequence": "Malware containment successful; further destruction stopped.",
+                        "nextStageId": "s2_sony_remediate",
+                        "technicalExplanation": "Host isolation and account reset mitigates T1078 and stops T1486."
+                    },
+                    {
+                        "actionText": "Continue monitoring for 2 hours.",
+                        "isCorrect": False,
+                        "consequence": "Data loss continues; attack escalates.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Delaying action allows continued destruction and exfiltration."
+                    },
+                    {
+                        "actionText": "Block outbound traffic only.",
+                        "isCorrect": False,
+                        "consequence": "Local file deletion continues; damage persists.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Partial network control insufficient for destructive malware."
+                    },
+                    {
+                        "actionText": "Shut down non-critical servers only.",
+                        "isCorrect": False,
+                        "consequence": "Partial shutdown does not stop attack on critical systems.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Selective shutdown fails to contain malware fully."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Early detection of spear-phishing reduces malware impact.",
+            "Host isolation and admin account resets are critical for destructive attacks.",
+            "Validation across SIEM, EDR, and backups ensures complete remediation."
+        ],
+        "referenceLinks": [
+            "https://attack.mitre.org/techniques/T1566/1/",
+            "https://attack.mitre.org/techniques/T1486/",
+            "https://www.cisa.gov/news-events/news/advisory/mitigating-destructive-malware-attacks"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Industrial Sabotage",
+    "description": "Investigate a sophisticated malware attack targeting industrial control systems (ICS) in a nuclear facility network.",
+    "initial_prompt": "Your SOC and OT team detect anomalies in PLC communications and unexpected Windows host behaviors. Some SCADA controllers are sending abnormal commands. The incident could compromise critical industrial processes. Your task is to identify, contain, and analyze the attack without disrupting plant operations.",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "Stuxnet (Zero-day Worm / PLC-targeting)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "USB drop → Lateral Windows compromise → PLC infection → Command tampering → Monitoring avoidance",
+        "keyTTPs": [
+            "T1204.002 — User Execution: Malicious File",
+            "T1078 — Valid Accounts",
+            "T1036.003 — Masquerading: Rename System Utilities",
+            "T0800 — ICS-Specific: PLC Command Injection",
+            "T1021.001 — Remote Services: RDP",
+            "T1499 — Resource Hijacking / ICS Manipulation"
+        ],
+        "simulationContext": "Medium-sized nuclear enrichment facility using SCADA-controlled PLCs. Windows IT network coexists with isolated OT network; SIEM, EDR, and ICS monitoring in place. Backups exist but ICS system snapshots are limited.",
+        "roleHints": {
+            "network": "Focus on unusual SMB, RDP, or USB device activity between IT and OT network zones.",
+            "endpoint": "Check for newly created services, masqueraded executables, or abnormal process chains on Windows hosts.",
+            "ir_lead": "Assess OT vs IT impact, coordinate with ICS engineers to avoid critical failures.",
+            "solo": "Correlate IT logs, ICS telemetry, and SIEM alerts to trace the Stuxnet infection path."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_stuxnet_initial",
+                "irPhase": "Preparation",
+                "prompt": "You receive alerts about a USB device connecting to WS-ENG-PLC01 with a new autorun process detected. What is your first step?",
+                "analystContext": "EDR flags suspicious process execution originating from removable media. SIEM logs show unusual login activity from WS-ENG-PLC01.",
+                "networkContext": "Firewall shows unusual outbound SMB connections to WS-FIN-03.",
+                "endpointContext": "Sysmon reports a new service, svchost.exe, renamed from legitimate Windows binary.",
+                "irLeadContext": "Any misstep could disrupt the ICS process and cause physical damage.",
+                "options": [
+                    {
+                        "actionText": "Ignore alerts, assume USB was safe.",
+                        "isCorrect": False,
+                        "consequence": "Stuxnet propagates to SCADA servers and PLCs.",
+                        "nextStageId": "s1_stuxnet_detect",
+                        "technicalExplanation": "Ignoring T1204.002 alerts allows malware execution and lateral movement."
+                    },
+                    {
+                        "actionText": "Investigate USB autorun logs and isolate the host from the network.",
+                        "isCorrect": True,
+                        "consequence": "Infection contained before reaching PLCs; initial T1078 activity mapped.",
+                        "nextStageId": "s1_stuxnet_detect",
+                        "technicalExplanation": "Isolating the host prevents further T1021.001 exploitation and lateral propagation."
+                    },
+                    {
+                        "actionText": "Reboot WS-ENG-PLC01 immediately.",
+                        "isCorrect": False,
+                        "consequence": "PLC connections remain compromised; process disruption risk.",
+                        "nextStageId": "s1_stuxnet_detect",
+                        "technicalExplanation": "Rebooting alone does not remove Stuxnet persistence or malicious services."
+                    },
+                    {
+                        "actionText": "Notify management and wait for confirmation before acting.",
+                        "isCorrect": False,
+                        "consequence": "Malware spreads to critical PLCs; triggers branch crisis stage.",
+                        "nextStageId": "s_stuxnet_crisis",
+                        "technicalExplanation": "Delaying action allows the malware to infect OT systems; T0800 commands may be executed.",
+                        "failBranchStageId": "s_stuxnet_crisis"
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_stuxnet_detect",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Malware detected on IT host; ICS telemetry shows abnormal PLC outputs. What containment actions do you implement?",
+                "analystContext": "EDR shows renamed svchost.exe, abnormal process chains. SIEM correlates failed and successful logins to multiple OT hosts.",
+                "networkContext": "SMB traffic to OT network detected; unusual outbound connections flagged.",
+                "endpointContext": "New services installed on multiple WS hosts, some masquerading as legitimate binaries.",
+                "irLeadContext": "Operational continuity of nuclear process is critical; balance containment and ICS stability.",
+                "options": [
+                    {
+                        "actionText": "Isolate infected IT hosts and block SMB connections to OT hosts.",
+                        "isCorrect": True,
+                        "consequence": "Lateral movement halted; ICS systems monitored safely.",
+                        "nextStageId": "s2_stuxnet_remediate",
+                        "technicalExplanation": "Mitigates T1021.001 propagation while preserving OT operations."
+                    },
+                    {
+                        "actionText": "Shut down OT PLC network immediately.",
+                        "isCorrect": False,
+                        "consequence": "Process disruption, physical system risk.",
+                        "nextStageId": "s2_stuxnet_remediate",
+                        "technicalExplanation": "Extreme shutdown risks safety; partial containment possible instead."
+                    },
+                    {
+                        "actionText": "Attempt remote remediation from IT network without isolating hosts.",
+                        "isCorrect": False,
+                        "consequence": "Stuxnet spreads further; triggers crisis branch.",
+                        "nextStageId": "s_stuxnet_crisis",
+                        "technicalExplanation": "Remote remediation without isolation allows T1078 & T0800 propagation.",
+                        "failBranchStageId": "s_stuxnet_crisis"
+                    },
+                    {
+                        "actionText": "Monitor PLC behavior without intervention.",
+                        "isCorrect": False,
+                        "consequence": "PLC sabotage continues; possible physical damage.",
+                        "nextStageId": "s2_stuxnet_remediate",
+                        "technicalExplanation": "Passive monitoring fails to stop destructive malware."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_stuxnet_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "IT hosts are isolated, malware detected. How do you ensure full eradication and safe ICS operation?",
+                "analystContext": "EDR shows no active malicious processes on isolated IT hosts. PLC telemetry normalizing.",
+                "networkContext": "Firewall blocks confirmed between IT and OT zones.",
+                "endpointContext": "Hosts scanned; renamed binaries identified and removed.",
+                "irLeadContext": "Confirm OT control integrity before resuming normal operations.",
+                "options": [
+                    {
+                        "actionText": "Validate endpoint scans, remove malicious binaries, monitor ICS telemetry, then resume operations.",
+                        "isCorrect": True,
+                        "consequence": "Systems cleaned; OT operations verified safe.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Comprehensive verification ensures T1036.003 & T0800 threats eradicated."
+                    },
+                    {
+                        "actionText": "Resume operations after endpoint scans only.",
+                        "isCorrect": False,
+                        "consequence": "Residual Stuxnet binaries may remain, risking ICS sabotage.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Ignoring ICS telemetry misses ongoing T0800 manipulations."
+                    },
+                    {
+                        "actionText": "Delete SIEM logs to cover tracks.",
+                        "isCorrect": False,
+                        "consequence": "Forensic data lost; future detection impaired.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Critical analysis requires preserved logs."
+                    },
+                    {
+                        "actionText": "Disconnect all OT systems permanently.",
+                        "isCorrect": False,
+                        "consequence": "Operational halt, no verification performed.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Excessive disruption without remediation verification."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_stuxnet_crisis",
+                "irPhase": "Containment",
+                "prompt": "Delaying isolation allowed Stuxnet to propagate to multiple PLCs, causing abnormal commands and process deviations. What is your immediate action?",
+                "analystContext": "PLC telemetry shows unsafe RPM changes, SIEM flags ongoing T0800 commands.",
+                "networkContext": "SMB and RDP connections between IT and OT hosts active.",
+                "endpointContext": "Masqueraded binaries running on multiple hosts.",
+                "irLeadContext": "Prevent physical damage and stop further compromise.",
+                "options": [
+                    {
+                        "actionText": "Immediately isolate all affected IT hosts and block IT-OT network traffic.",
+                        "isCorrect": True,
+                        "consequence": "Malware containment successful; OT systems stabilize.",
+                        "nextStageId": "s2_stuxnet_remediate",
+                        "technicalExplanation": "Isolation halts T1021.001 propagation and T0800 destructive commands."
+                    },
+                    {
+                        "actionText": "Continue monitoring PLCs without intervention.",
+                        "isCorrect": False,
+                        "consequence": "ICS sabotage escalates; potential physical damage.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Passive observation allows T0800 activity to continue."
+                    },
+                    {
+                        "actionText": "Shut down IT network only.",
+                        "isCorrect": False,
+                        "consequence": "OT hosts still compromised; destruction continues.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Partial IT shutdown insufficient for Stuxnet containment."
+                    },
+                    {
+                        "actionText": "Notify management before taking any technical action.",
+                        "isCorrect": False,
+                        "consequence": "Malware continues acting on PLCs; crisis worsens.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Delays allow T0800 and T1036.003 to proceed unchecked."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Immediate isolation of infected IT hosts prevents OT compromise.",
+            "Monitoring ICS telemetry is critical for early detection of physical sabotage.",
+            "Cross-team coordination between IT and OT teams ensures safe remediation of complex malware."
+        ],
+        "referenceLinks": [
+            "https://attack.mitre.org/techniques/T0800/",
+            "https://attack.mitre.org/techniques/T1204/002/",
+            "https://www.cisa.gov/uscert/ncas/alerts/TA13-088A"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Credential Oversight",
+    "description": "Investigate unauthorized access to critical financial servers via compromised credentials.",
+    "initial_prompt": "Your SOC team detects unusual authentication attempts on high-value servers. Some endpoints report failed logins followed by successful access from uncommon IP addresses. It appears that privileged credentials may have been compromised. Your task is to contain the intrusion and prevent data exfiltration.",
+    "difficulty_level": "medium",
+    "max_attempts": 3,
+    "scenario_structure": {
+        "ransomwareFamily": "Credential Theft / Lateral Movement (Banking IT focus)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Phishing → Credential Harvest → Remote Access → Lateral Movement → Data Access",
+        "keyTTPs": [
+            "T1078 — Valid Accounts",
+            "T1110 — Brute Force",
+            "T1021.001 — Remote Services: RDP",
+            "T1033 — System Owner/User Discovery",
+            "T1087 — Account Discovery"
+        ],
+        "simulationContext": "Large US-based financial institution with segmented IT network. Active SIEM and EDR deployments; MFA partially enabled. Endpoint logging is centralized, firewall logs collected in SIEM.",
+        "roleHints": {
+            "network": "Focus on unusual remote login IPs, VPN logs, and lateral RDP traffic.",
+            "endpoint": "Check for suspicious processes or credential dumping attempts on endpoints.",
+            "ir_lead": "Determine containment steps for compromised accounts and prioritize high-value server protection.",
+            "solo": "Correlate authentication events, lateral movement, and SIEM alerts to trace compromise."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_jpm_cred_init",
+                "irPhase": "Preparation",
+                "prompt": "You see multiple failed logins to SRV-FIN-DB01 followed by a successful login from an external IP. What is your first step?",
+                "analystContext": "SIEM alerts flag suspicious RDP connections and multiple account login failures.",
+                "networkContext": "Firewall shows remote access from unfamiliar IP ranges.",
+                "endpointContext": "EDR reports login process activity outside of normal schedule.",
+                "irLeadContext": "Immediate containment required to prevent further lateral movement.",
+                "options": [
+                    {
+                        "actionText": "Ignore the alerts; assume administrator mistyped credentials.",
+                        "isCorrect": False,
+                        "consequence": "Attackers escalate privileges and access multiple servers; triggers branch crisis stage.",
+                        "nextStageId": "s_jpm_crisis",
+                        "technicalExplanation": "Ignoring T1078 and T1110 indicators allows unauthorized access to persist.",
+                        "failBranchStageId": "s_jpm_crisis"
+                    },
+                    {
+                        "actionText": "Isolate the affected host and verify the account activity.",
+                        "isCorrect": True,
+                        "consequence": "Compromise contained to one host; account activity traced.",
+                        "nextStageId": "s1_jpm_cred_detect",
+                        "technicalExplanation": "Isolation halts lateral movement and allows T1087 and T1033 monitoring."
+                    },
+                    {
+                        "actionText": "Reset all credentials for the entire department immediately.",
+                        "isCorrect": False,
+                        "consequence": "Causes operational disruption; delays response on compromised host.",
+                        "nextStageId": "s1_jpm_cred_detect",
+                        "technicalExplanation": "Overreaction disrupts users without targeting the active compromise."
+                    },
+                    {
+                        "actionText": "Notify management first before acting.",
+                        "isCorrect": False,
+                        "consequence": "Attack spreads to additional high-value servers.",
+                        "nextStageId": "s_jpm_crisis",
+                        "technicalExplanation": "Delays allow further T1021.001 exploitation."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_jpm_cred_detect",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Malware and credential theft confirmed on SRV-FIN-DB01. How do you trace attacker movement?",
+                "analystContext": "EDR logs show suspicious powershell.exe and lsass.exe memory access.",
+                "networkContext": "SIEM shows RDP connections to SRV-FIN-APP02 and SRV-FIN-DB02 from same external IP.",
+                "endpointContext": "Processes created with unusual parent-child relationships; credential dumping attempts observed.",
+                "irLeadContext": "Focus on accounts with access to sensitive databases.",
+                "options": [
+                    {
+                        "actionText": "Follow lateral movement via SIEM correlation and isolate affected hosts.",
+                        "isCorrect": True,
+                        "consequence": "Lateral movement mapped and contained; attacker access blocked.",
+                        "nextStageId": "s2_jpm_remediate",
+                        "technicalExplanation": "Tracing T1087 and T1021.001 allows proper containment without operational disruption."
+                    },
+                    {
+                        "actionText": "Shut down all servers in the segment.",
+                        "isCorrect": False,
+                        "consequence": "Operations disrupted unnecessarily.",
+                        "nextStageId": "s2_jpm_remediate",
+                        "technicalExplanation": "Overly broad shutdown is disruptive and avoids targeted remediation."
+                    },
+                    {
+                        "actionText": "Delete suspicious processes without isolation.",
+                        "isCorrect": False,
+                        "consequence": "Attackers retain access via harvested credentials; triggers branch crisis.",
+                        "nextStageId": "s_jpm_crisis",
+                        "technicalExplanation": "Removal without isolation does not prevent credential reuse.",
+                        "failBranchStageId": "s_jpm_crisis"
+                    },
+                    {
+                        "actionText": "Monitor activity passively without intervention.",
+                        "isCorrect": False,
+                        "consequence": "Additional servers compromised.",
+                        "nextStageId": "s2_jpm_remediate",
+                        "technicalExplanation": "Passive monitoring allows continued T1078 access."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_jpm_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Affected hosts isolated; suspicious accounts identified. What steps ensure full remediation?",
+                "analystContext": "EDR confirms no active malicious processes on isolated hosts. SIEM correlation completed.",
+                "networkContext": "Firewall blocks all external RDP and VPN traffic from suspicious IPs.",
+                "endpointContext": "Credential dumps removed and accounts reset.",
+                "irLeadContext": "Verify integrity before resuming normal operations.",
+                "options": [
+                    {
+                        "actionText": "Validate host integrity, remove compromised accounts, monitor for unusual access, then resume operations.",
+                        "isCorrect": True,
+                        "consequence": "Systems cleaned; attacker blocked.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Combines T1078 mitigation, account remediation, and post-incident monitoring."
+                    },
+                    {
+                        "actionText": "Resume operations immediately after resetting passwords.",
+                        "isCorrect": False,
+                        "consequence": "Residual malicious access may remain.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Incomplete eradication allows T1110/T1021.001 persistence."
+                    },
+                    {
+                        "actionText": "Delete all logs to avoid evidence retention.",
+                        "isCorrect": False,
+                        "consequence": "Forensic and SIEM correlation lost.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Log deletion prevents future detection and analysis."
+                    },
+                    {
+                        "actionText": "Leave hosts isolated indefinitely.",
+                        "isCorrect": False,
+                        "consequence": "Operational disruption without additional remediation.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Indefinite isolation harms business continuity."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_jpm_crisis",
+                "irPhase": "Containment",
+                "prompt": "Delay or improper isolation allowed attackers to access multiple high-value servers. What is your immediate response?",
+                "analystContext": "SIEM flags multiple successful logins from external IPs to critical servers.",
+                "networkContext": "Firewall shows lateral RDP traffic between key finance servers.",
+                "endpointContext": "EDR reports powershell.exe accessing lsass.exe memory dumps.",
+                "irLeadContext": "Prevent further unauthorized access and data exfiltration.",
+                "options": [
+                    {
+                        "actionText": "Isolate all affected servers and reset all privileged credentials immediately.",
+                        "isCorrect": True,
+                        "consequence": "Attacker access blocked; containment achieved.",
+                        "nextStageId": "s2_jpm_remediate",
+                        "technicalExplanation": "Targeted isolation halts T1078 and T1021.001 activity."
+                    },
+                    {
+                        "actionText": "Monitor the servers without isolation.",
+                        "isCorrect": False,
+                        "consequence": "Further sensitive data compromised.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Passive observation allows ongoing lateral movement."
+                    },
+                    {
+                        "actionText": "Shut down network segment partially.",
+                        "isCorrect": False,
+                        "consequence": "Attackers continue lateral access on unaffected hosts.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Partial shutdown insufficient for containment."
+                    },
+                    {
+                        "actionText": "Notify management before any technical action.",
+                        "isCorrect": False,
+                        "consequence": "Delayed response allows continued attacker activity.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Immediate technical containment is required for T1078 mitigation."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Immediate isolation of compromised hosts prevents lateral movement.",
+            "Correlating SIEM, EDR, and authentication logs is critical for rapid detection.",
+            "Account and credential management, including MFA, is essential for sensitive systems."
+        ],
+        "referenceLinks": [
+            "https://www.cisa.gov/uscert/ncas/alerts/aa14-013a",
+            "https://attack.mitre.org/techniques/T1078/",
+            "https://www.fireeye.com/blog/threat-research/2014/08/jpmorgan-chase-attack.html"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Clearance Compromise",
+    "description": "Investigate unauthorized access to sensitive federal personnel records.",
+    "initial_prompt": "Your SIEM flags multiple anomalous access events in HR and security clearance databases. Unusual authentication patterns suggest a potential insider threat or compromised contractor credentials. Analysts must identify the source, contain access, and prevent exfiltration of sensitive PII and clearance records.",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "Credential Theft & Data Exfiltration (Advanced Persistent Threat)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Phishing → Compromised Contractor Account → Privileged Access → Data Exfiltration via FTP/SFTP → Lateral Enumeration",
+        "keyTTPs": [
+            "T1078 — Valid Accounts",
+            "T1537 — Transfer Data to Cloud Account",
+            "T1071.001 — Application Layer Protocol: Web Protocols",
+            "T1083 — File and Directory Discovery",
+            "T1005 — Data from Local System"
+        ],
+        "simulationContext": "Large US federal HR agency with mixed cloud/on-prem systems. MFA partially enabled. Centralized SIEM and EDR. Some contractors have elevated access to personnel records. Backup state is regular but encrypted offline.",
+        "roleHints": {
+            "network": "Monitor unusual outbound traffic to foreign IPs and unexpected FTP/SFTP connections.",
+            "endpoint": "Check for suspicious file access on HR and clearance servers.",
+            "ir_lead": "Prioritize containment of compromised accounts and review audit logs for sensitive exfiltration.",
+            "solo": "Correlate authentication, data access, and network logs to detect unauthorized movement."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_opm_init",
+                "irPhase": "Preparation",
+                "prompt": "You notice multiple logins to HR servers from a contractor's account at unusual times. How do you proceed first?",
+                "analystContext": "SIEM alerts flag abnormal hours logins and cross-region access patterns.",
+                "networkContext": "Firewall shows outbound FTP/SFTP sessions to foreign IPs from affected hosts.",
+                "endpointContext": "EDR shows access to sensitive HR directories and unusual powershell scripts.",
+                "irLeadContext": "Compromised accounts could exfiltrate sensitive clearance data quickly.",
+                "options": [
+                    {
+                        "actionText": "Ignore the alerts; assume contractor worked late hours.",
+                        "isCorrect": False,
+                        "consequence": "Attacker exfiltrates sensitive PII; triggers crisis branch.",
+                        "nextStageId": "s_opm_crisis",
+                        "technicalExplanation": "Failure to act on T1078 and T1005 activity allows unauthorized data exfiltration.",
+                        "failBranchStageId": "s_opm_crisis"
+                    },
+                    {
+                        "actionText": "Suspend the contractor account and analyze recent access logs.",
+                        "isCorrect": True,
+                        "consequence": "Suspicious activity halted; forensic analysis begins.",
+                        "nextStageId": "s1_opm_detect",
+                        "technicalExplanation": "Immediate account suspension mitigates further T1537 exfiltration."
+                    },
+                    {
+                        "actionText": "Notify management and wait for guidance.",
+                        "isCorrect": False,
+                        "consequence": "Delay allows further exfiltration.",
+                        "nextStageId": "s_opm_crisis",
+                        "technicalExplanation": "Waiting on non-technical management delays containment of active compromise.",
+                        "failBranchStageId": "s_opm_crisis"
+                    },
+                    {
+                        "actionText": "Delete suspicious files on the contractor's workstation.",
+                        "isCorrect": False,
+                        "consequence": "Files removed but evidence lost; attacker still active.",
+                        "nextStageId": "s1_opm_detect",
+                        "technicalExplanation": "Does not prevent T1078-based access; forensic logs destroyed."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_opm_detect",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Logs show the contractor downloaded large HR data sets to a personal cloud storage. How do you investigate the full scope?",
+                "analystContext": "EDR reports powershell activity copying files to temp directories; SIEM flags large outbound traffic.",
+                "networkContext": "Firewall logs outbound connections to unknown cloud IPs.",
+                "endpointContext": "File access logs show sensitive PII accessed outside business hours.",
+                "irLeadContext": "Focus on stopping exfiltration and auditing which files were taken.",
+                "options": [
+                    {
+                        "actionText": "Block outbound connections and review all accessed files.",
+                        "isCorrect": True,
+                        "consequence": "Exfiltration stopped; compromised data identified.",
+                        "nextStageId": "s2_opm_remediate",
+                        "technicalExplanation": "Combines T1537 and T1005 detection for containment and scope identification."
+                    },
+                    {
+                        "actionText": "Monitor connections passively without blocking.",
+                        "isCorrect": False,
+                        "consequence": "Additional sensitive data exfiltrated; triggers crisis branch.",
+                        "nextStageId": "s_opm_crisis",
+                        "technicalExplanation": "Passive monitoring allows continued data exfiltration."
+                    },
+                    {
+                        "actionText": "Delete all downloaded files on user endpoints.",
+                        "isCorrect": False,
+                        "consequence": "Files removed but attacker still has copies; evidence lost.",
+                        "nextStageId": "s2_opm_remediate",
+                        "technicalExplanation": "Deleting local files does not mitigate cloud-based exfiltration."
+                    },
+                    {
+                        "actionText": "Alert contractor via email to stop activity.",
+                        "isCorrect": False,
+                        "consequence": "Attacker ignores warning; exfiltration continues.",
+                        "nextStageId": "s_opm_crisis",
+                        "technicalExplanation": "Human intervention too late; T1537 persists."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_opm_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Exfiltration blocked. How do you finalize remediation?",
+                "analystContext": "Accounts suspended, forensic logs collected, EDR confirms no active data exfiltration processes.",
+                "networkContext": "Firewall continues to block unusual cloud destinations.",
+                "endpointContext": "Access permissions reviewed; all sensitive files logged.",
+                "irLeadContext": "Ensure full containment and post-incident reporting.",
+                "options": [
+                    {
+                        "actionText": "Audit all sensitive file access, restore accounts securely, and monitor for recurrence.",
+                        "isCorrect": True,
+                        "consequence": "Incident fully remediated; post-incident report generated.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Combines T1005 analysis, account remediation, and monitoring to prevent repeat compromise."
+                    },
+                    {
+                        "actionText": "Restore accounts immediately without auditing.",
+                        "isCorrect": False,
+                        "consequence": "Risk of repeated compromise remains.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Skipping forensic review leaves attackers able to reuse T1078 access."
+                    },
+                    {
+                        "actionText": "Delete all logs to hide incident.",
+                        "isCorrect": False,
+                        "consequence": "Evidence lost; regulatory non-compliance.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Destroying logs prevents both forensic analysis and compliance reporting."
+                    },
+                    {
+                        "actionText": "Leave accounts suspended indefinitely.",
+                        "isCorrect": False,
+                        "consequence": "Operational disruption without added security.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Indefinite suspension is disruptive and unnecessary post-remediation."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_opm_crisis",
+                "irPhase": "Containment",
+                "prompt": "Delay or inaction allowed attackers to exfiltrate sensitive HR and clearance data. What is your immediate action?",
+                "analystContext": "SIEM shows large file transfers to external cloud storage from multiple HR servers.",
+                "networkContext": "Firewall confirms multiple connections to foreign IPs over FTP/SFTP.",
+                "endpointContext": "EDR shows active powershell and curl processes accessing sensitive files.",
+                "irLeadContext": "Prevent further exfiltration and identify compromised accounts.",
+                "options": [
+                    {
+                        "actionText": "Block all outbound connections, suspend compromised accounts, and perform full forensic audit.",
+                        "isCorrect": True,
+                        "consequence": "Exfiltration stopped; full incident scope identified.",
+                        "nextStageId": "s2_opm_remediate",
+                        "technicalExplanation": "Targeted containment halts T1537 and T1078 activity and allows remediation."
+                    },
+                    {
+                        "actionText": "Monitor activity without blocking connections.",
+                        "isCorrect": False,
+                        "consequence": "Exfiltration continues; sensitive data lost.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Passive monitoring insufficient to prevent ongoing T1537 activity."
+                    },
+                    {
+                        "actionText": "Shut down HR servers partially.",
+                        "isCorrect": False,
+                        "consequence": "Only partially mitigates exfiltration; attacker still active.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Partial shutdown insufficient to stop T1078/T1537 compromise."
+                    },
+                    {
+                        "actionText": "Notify management before technical action.",
+                        "isCorrect": False,
+                        "consequence": "Exfiltration continues; no immediate containment.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Immediate technical containment required for sensitive PII."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Immediate suspension of compromised accounts is critical in APT exfiltration scenarios.",
+            "Monitoring unusual outbound connections to cloud storage can detect data exfiltration quickly.",
+            "Comprehensive audit of sensitive data access is required for post-incident remediation."
+        ],
+        "referenceLinks": [
+            "https://www.opm.gov/cybersecurity/",
+            "https://attack.mitre.org/techniques/T1078/",
+            "https://www.nist.gov/news-events/news/2015/06/lessons-learned-opm-data-breach"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Guest Data Exposure",
+    "description": "Investigate unauthorized long-term access to hotel guest databases and mitigate further exposure.",
+    "initial_prompt": "SIEM alerts indicate unusual administrative activity on the guest reservation database. Analysts notice elevated privilege use from a legacy Starwood system. Historical access logs suggest the compromise has persisted for years, but recent activity is accelerating.",
+    "difficulty_level": "medium",
+    "max_attempts": 3,
+    "scenario_structure": {
+        "ransomwareFamily": "Persistent Credential Exploit & Data Exfiltration (APTs)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Stolen vendor credentials → Legacy system access → Privilege escalation → Database exfiltration → Cloud staging",
+        "keyTTPs": [
+            "T1078 — Valid Accounts",
+            "T1087 — Account Discovery",
+            "T1005 — Data from Local System",
+            "T1537 — Transfer Data to Cloud Account",
+            "T1059.001 — Command and Scripting Interpreter: PowerShell"
+        ],
+        "simulationContext": "Large hospitality enterprise with merged legacy and modern systems. Partial cloud integration. Some legacy Starwood systems with outdated access controls. SIEM and EDR in place, backups exist but not fully tested.",
+        "roleHints": {
+            "network": "Monitor legacy server traffic to unusual external IPs and cloud storage destinations.",
+            "endpoint": "Look for abnormal PowerShell commands and file access on legacy servers.",
+            "ir_lead": "Prioritize identification of exfiltrated guest data and contain legacy system access.",
+            "solo": "Correlate cross-system authentication and file movement to detect long-standing compromise."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_marriott_init",
+                "irPhase": "Preparation",
+                "prompt": "You see administrative logins from a legacy Starwood server originating from an unusual IP range. What is your first step?",
+                "analystContext": "SIEM indicates historical access from this account but also sudden spikes in activity.",
+                "networkContext": "Firewall logs show outbound FTP connections to foreign cloud IPs from legacy systems.",
+                "endpointContext": "EDR reports elevated privilege commands and access to sensitive guest PII.",
+                "irLeadContext": "The breach may have persisted for years; stopping current activity is critical.",
+                "options": [
+                    {
+                        "actionText": "Investigate login patterns while keeping accounts active.",
+                        "isCorrect": False,
+                        "consequence": "Attacker continues to access sensitive guest data; triggers crisis branch.",
+                        "nextStageId": "s_marriott_crisis",
+                        "technicalExplanation": "Delaying action on T1078 and T1537 activity allows continued exfiltration.",
+                        "failBranchStageId": "s_marriott_crisis"
+                    },
+                    {
+                        "actionText": "Suspend compromised accounts and begin forensic review.",
+                        "isCorrect": True,
+                        "consequence": "Unauthorized access halted; analysis of impacted data begins.",
+                        "nextStageId": "s1_marriott_detect",
+                        "technicalExplanation": "Immediate suspension mitigates further T1078 and T1537 activity."
+                    },
+                    {
+                        "actionText": "Notify management and await further guidance.",
+                        "isCorrect": False,
+                        "consequence": "Delay allows continued data exfiltration.",
+                        "nextStageId": "s_marriott_crisis",
+                        "technicalExplanation": "Management notification alone does not stop active compromise.",
+                        "failBranchStageId": "s_marriott_crisis"
+                    },
+                    {
+                        "actionText": "Force logout of the user but do not block outbound traffic.",
+                        "isCorrect": False,
+                        "consequence": "Account forced out but data already in cloud remains accessible.",
+                        "nextStageId": "s1_marriott_detect",
+                        "technicalExplanation": "Partial action insufficient to stop ongoing T1537 exfiltration."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_marriott_detect",
+                "irPhase": "Detection & Analysis",
+                "prompt": "You find large amounts of guest reservation data staged for transfer to external cloud storage. How do you investigate the scope?",
+                "analystContext": "EDR shows legacy server scripts compressing PII files for upload.",
+                "networkContext": "Firewall logs outbound FTP/SFTP traffic to external cloud IPs.",
+                "endpointContext": "File access timestamps show large batches of sensitive guest data copied to temp folders.",
+                "irLeadContext": "Identify affected accounts and determine how long exfiltration persisted.",
+                "options": [
+                    {
+                        "actionText": "Block outbound cloud traffic and audit all accessed guest data.",
+                        "isCorrect": True,
+                        "consequence": "Exfiltration stopped; compromised files identified.",
+                        "nextStageId": "s2_marriott_remediate",
+                        "technicalExplanation": "Combines T1537 and T1005 detection for containment and scope identification."
+                    },
+                    {
+                        "actionText": "Monitor outbound traffic without intervention.",
+                        "isCorrect": False,
+                        "consequence": "Exfiltration continues; more guest PII compromised.",
+                        "nextStageId": "s_marriott_crisis",
+                        "technicalExplanation": "Passive monitoring fails to prevent T1537 activity."
+                    },
+                    {
+                        "actionText": "Delete temporary compressed files on server.",
+                        "isCorrect": False,
+                        "consequence": "Files removed locally but copies in cloud persist.",
+                        "nextStageId": "s2_marriott_remediate",
+                        "technicalExplanation": "Local deletion does not mitigate cloud exfiltration."
+                    },
+                    {
+                        "actionText": "Contact the contractor responsible for the legacy system.",
+                        "isCorrect": False,
+                        "consequence": "Delay allows continued exfiltration.",
+                        "nextStageId": "s_marriott_crisis",
+                        "technicalExplanation": "Human intervention too slow; attacker still active."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_marriott_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Exfiltration halted. How do you finalize remediation?",
+                "analystContext": "All affected accounts suspended; forensic logs collected; EDR confirms no active data transfer.",
+                "networkContext": "Firewall continues blocking legacy system outbound traffic.",
+                "endpointContext": "Access logs show all guest data files locked and monitored.",
+                "irLeadContext": "Ensure full containment and prepare post-incident reporting.",
+                "options": [
+                    {
+                        "actionText": "Audit all data access, restore accounts with strong MFA, and monitor for recurrence.",
+                        "isCorrect": True,
+                        "consequence": "Incident fully remediated; monitoring ensures no repeat access.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Combines T1005 analysis, account remediation, and monitoring to prevent repeat compromise."
+                    },
+                    {
+                        "actionText": "Restore accounts immediately without auditing.",
+                        "isCorrect": False,
+                        "consequence": "Risk of repeated compromise remains.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Skipping forensic review leaves attackers able to reuse T1078 access."
+                    },
+                    {
+                        "actionText": "Delete all logs to hide incident.",
+                        "isCorrect": False,
+                        "consequence": "Evidence lost; regulatory non-compliance.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Destroying logs prevents both forensic analysis and compliance reporting."
+                    },
+                    {
+                        "actionText": "Leave accounts suspended indefinitely.",
+                        "isCorrect": False,
+                        "consequence": "Operational disruption without added security.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Indefinite suspension is disruptive and unnecessary post-remediation."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_marriott_crisis",
+                "irPhase": "Containment",
+                "prompt": "Delay or inaction allowed attackers to continue exfiltrating guest reservation data. What is your immediate action?",
+                "analystContext": "SIEM shows large file transfers to cloud storage; multiple legacy accounts active.",
+                "networkContext": "Firewall confirms outbound FTP/SFTP connections to multiple foreign cloud IPs.",
+                "endpointContext": "EDR shows active scripts compressing and uploading sensitive guest files.",
+                "irLeadContext": "Containment is critical to stop further exposure.",
+                "options": [
+                    {
+                        "actionText": "Block all outbound cloud traffic and suspend compromised accounts immediately.",
+                        "isCorrect": True,
+                        "consequence": "Exfiltration halted; scope of compromise identified.",
+                        "nextStageId": "s2_marriott_remediate",
+                        "technicalExplanation": "Immediate containment prevents further T1537 activity."
+                    },
+                    {
+                        "actionText": "Monitor traffic without blocking.",
+                        "isCorrect": False,
+                        "consequence": "Sensitive guest data continues to be exfiltrated.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Passive observation does not stop T1537 activity."
+                    },
+                    {
+                        "actionText": "Shut down legacy servers partially.",
+                        "isCorrect": False,
+                        "consequence": "Only partially mitigates exfiltration; attacker may use other accounts.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Partial shutdown insufficient to stop active T1078/T1537 activity."
+                    },
+                    {
+                        "actionText": "Notify management before taking technical action.",
+                        "isCorrect": False,
+                        "consequence": "Exfiltration continues; no immediate containment.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Immediate technical action required to prevent further data loss."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Legacy system access can allow multi-year APT compromises if not properly monitored.",
+            "Monitoring and blocking anomalous outbound connections is critical to stopping data exfiltration.",
+            "Audit and remediation of all sensitive data access must follow containment."
+        ],
+        "referenceLinks": [
+            "https://www.cisa.gov/news-events/news/2018/11/30/marriott-data-breach",
+            "https://attack.mitre.org/techniques/T1078/",
+            "https://www.forbes.com/sites/daveywinder/2018/11/30/marriott-starwood-data-breach-what-you-need-to-know/"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Cloud Firewall Exploit",
+    "description": "Investigate unauthorized access to cloud-hosted credit card data through a misconfigured firewall.",
+    "initial_prompt": "Your SOC has detected unusual HTTP requests to sensitive credit card storage buckets. Preliminary logs indicate the traffic originates from a single external IP with exploitation patterns targeting SSRF vulnerabilities in the web application firewall. Analysts must determine the scope and contain the attacker before further exfiltration occurs.",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "SSRF Credential Exploit & Data Exfiltration (Cloud)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Misconfigured WAF → SSRF exploit → IAM role access → S3 bucket enumeration → Data exfiltration",
+        "keyTTPs": [
+            "T1078 — Valid Accounts",
+            "T1210 — Exploitation of Remote Services",
+            "T1537 — Transfer Data to Cloud Account",
+            "T1005 — Data from Local System",
+            "T1071.001 — Application Layer Protocol: Web Protocols"
+        ],
+        "simulationContext": "Large financial institution with extensive cloud infrastructure and multiple WAFs. AWS-hosted storage for credit card data. WAF misconfiguration allows SSRF exploitation. SIEM, CloudTrail, and EDR in place. Backup and encryption policies implemented.",
+        "roleHints": {
+            "network": "Monitor WAF logs for unusual SSRF-like requests and external HTTP GET/POST anomalies.",
+            "endpoint": "Review logs of cloud-hosted instances for IAM token usage and suspicious scripts.",
+            "ir_lead": "Prioritize immediate isolation of cloud resources and revoke compromised credentials.",
+            "solo": "Correlate CloudTrail events, WAF access logs, and EDR alerts to determine attacker path."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_capone_init",
+                "irPhase": "Preparation",
+                "prompt": "CloudTrail logs show an external IP accessing credit card storage buckets using an unexpected WAF path. What is your first step?",
+                "analystContext": "Initial analysis shows requests using SSRF payloads with valid IAM temporary tokens.",
+                "networkContext": "WAF logs confirm malformed HTTP requests bypassing filtering rules.",
+                "endpointContext": "EDR detects Lambda functions invoked with unusual privileges.",
+                "irLeadContext": "Immediate action is critical to prevent large-scale exfiltration of sensitive PII.",
+                "options": [
+                    {
+                        "actionText": "Block the IP and isolate affected cloud buckets immediately.",
+                        "isCorrect": True,
+                        "consequence": "External requests blocked; attacker access cut off.",
+                        "nextStageId": "s1_capone_detect",
+                        "technicalExplanation": "Blocking malicious traffic stops T1210 and T1078 activity; containment prevents further T1537 exfiltration."
+                    },
+                    {
+                        "actionText": "Investigate logs before taking any action.",
+                        "isCorrect": False,
+                        "consequence": "Attacker continues accessing sensitive data; triggers crisis branch.",
+                        "nextStageId": "s_capone_crisis",
+                        "technicalExplanation": "Delaying containment in SSRF/T1078 attacks allows rapid exfiltration.",
+                        "failBranchStageId": "s_capone_crisis"
+                    },
+                    {
+                        "actionText": "Notify management and await instructions.",
+                        "isCorrect": False,
+                        "consequence": "Delay allows attacker to continue exfiltrating credit card data.",
+                        "nextStageId": "s_capone_crisis",
+                        "technicalExplanation": "Management notification alone does not stop active T1537 activity.",
+                        "failBranchStageId": "s_capone_crisis"
+                    },
+                    {
+                        "actionText": "Delete the suspicious WAF logs to confuse the attacker.",
+                        "isCorrect": False,
+                        "consequence": "Logs gone, but attacker continues exploiting SSRF.",
+                        "nextStageId": "s_capone_crisis",
+                        "technicalExplanation": "Destroying logs does not prevent T1210 and T1537 exfiltration.",
+                        "failBranchStageId": "s_capone_crisis"
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_capone_detect",
+                "irPhase": "Detection & Analysis",
+                "prompt": "You confirmed the external IP is blocked. How do you determine what data has already been exfiltrated?",
+                "analystContext": "CloudTrail shows S3 GET requests with valid tokens from the attacker IP before blocking.",
+                "networkContext": "Firewall/WAF logs reveal the SSRF request patterns and bucket enumeration attempts.",
+                "endpointContext": "EDR confirms temporary IAM credentials were used to access multiple Lambda functions.",
+                "irLeadContext": "Scope determination is essential for regulatory reporting and remediation.",
+                "options": [
+                    {
+                        "actionText": "Audit CloudTrail S3 access logs and correlate with IAM activity.",
+                        "isCorrect": True,
+                        "consequence": "Exfiltrated files identified and access scope defined.",
+                        "nextStageId": "s2_capone_remediate",
+                        "technicalExplanation": "Correlating T1078 and T1537 activity from CloudTrail allows accurate scope analysis."
+                    },
+                    {
+                        "actionText": "Assume no data was exfiltrated and continue normal operations.",
+                        "isCorrect": False,
+                        "consequence": "Regulatory risk; undetected exfiltration persists.",
+                        "nextStageId": "s_capone_crisis",
+                        "technicalExplanation": "Ignoring T1537 activity leaves data compromise unresolved.",
+                        "failBranchStageId": "s_capone_crisis"
+                    },
+                    {
+                        "actionText": "Shut down all cloud services immediately.",
+                        "isCorrect": False,
+                        "consequence": "Service outage; does not retroactively recover exfiltrated data.",
+                        "nextStageId": "s2_capone_remediate",
+                        "technicalExplanation": "Extreme containment unnecessary; scope must be assessed first."
+                    },
+                    {
+                        "actionText": "Delete suspicious Lambda logs.",
+                        "isCorrect": False,
+                        "consequence": "Evidence lost; attacker path remains partially unknown.",
+                        "nextStageId": "s2_capone_remediate",
+                        "technicalExplanation": "Deleting logs hinders forensic reconstruction and does not stop T1537 exfiltration."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_capone_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Scope identified. What is your remediation strategy?",
+                "analystContext": "IAM roles used by attacker revoked; WAF misconfigurations corrected.",
+                "networkContext": "All SSRF paths patched and blocked.",
+                "endpointContext": "EDR shows no active connections from attacker IP.",
+                "irLeadContext": "Ensure full containment, prevent recurrence, and prepare post-incident report.",
+                "options": [
+                    {
+                        "actionText": "Audit all accessed data, rotate IAM credentials, and monitor for anomalous access.",
+                        "isCorrect": True,
+                        "consequence": "Incident fully contained; future monitoring in place.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Combines T1005/T1078/T1537 analysis with preventive IAM actions."
+                    },
+                    {
+                        "actionText": "Restore IAM credentials to original state.",
+                        "isCorrect": False,
+                        "consequence": "Attacker could reuse compromised roles.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Ignoring T1078 lessons risks re-compromise."
+                    },
+                    {
+                        "actionText": "Delete CloudTrail logs.",
+                        "isCorrect": False,
+                        "consequence": "Evidence lost; regulatory non-compliance.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Forensic analysis requires preserved logs."
+                    },
+                    {
+                        "actionText": "Do nothing; attacker access is blocked.",
+                        "isCorrect": False,
+                        "consequence": "Incomplete remediation; potential overlooked exfiltration.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Blocking IP alone does not address prior T1537 activity."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_capone_crisis",
+                "irPhase": "Containment",
+                "prompt": "Failure to act allowed further exfiltration. What is your immediate action?",
+                "analystContext": "CloudTrail shows hundreds of GET requests to S3 buckets from attacker IP.",
+                "networkContext": "Firewall/WAF logs show repeated SSRF exploit attempts.",
+                "endpointContext": "EDR shows temporary credentials actively used.",
+                "irLeadContext": "Containment must happen immediately to prevent additional loss.",
+                "options": [
+                    {
+                        "actionText": "Block attacker IP and revoke all temporary IAM credentials immediately.",
+                        "isCorrect": True,
+                        "consequence": "Exfiltration halted; remediation path resumes.",
+                        "nextStageId": "s1_capone_detect",
+                        "technicalExplanation": "Immediate revocation and traffic blocking stops ongoing T1078/T1537 activity."
+                    },
+                    {
+                        "actionText": "Monitor activity without action.",
+                        "isCorrect": False,
+                        "consequence": "Data continues to be exfiltrated.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Passive observation fails to stop T1537 activity."
+                    },
+                    {
+                        "actionText": "Notify management first.",
+                        "isCorrect": False,
+                        "consequence": "Exfiltration continues while waiting.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Immediate technical containment is critical in SSRF breaches."
+                    },
+                    {
+                        "actionText": "Shut down all cloud services.",
+                        "isCorrect": False,
+                        "consequence": "Service disruption; prior exfiltration not mitigated.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Extreme containment does not retroactively recover data."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Misconfigured cloud WAFs can lead to SSRF-based credential compromise.",
+            "Immediate blocking and credential revocation are critical in live cloud data exfiltration.",
+            "Forensic correlation across CloudTrail, WAF, and EDR logs enables accurate scope analysis."
+        ],
+        "referenceLinks": [
+            "https://www.cisa.gov/news-events/news/2019/07/30/capital-one-data-breach",
+            "https://attack.mitre.org/techniques/T1210/",
+            "https://www.bankinfosecurity.com/capital-one-breach-hacked-data-exfiltrated-a-12905"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Stolen Cloud Keys",
+    "description": "Investigate exposure of cloud credentials leading to unauthorized data access in a ride-sharing environment.",
+    "initial_prompt": "Your SOC receives alerts that a cloud-hosted database containing driver and rider information was accessed from an unknown IP. Initial indicators suggest that AWS credentials may have been exposed in public code repositories. Analysts must identify the breach, contain access, and assess data compromise.",
+    "difficulty_level": "medium",
+    "max_attempts": 3,
+    "scenario_structure": {
+        "ransomwareFamily": "Exposed Cloud Credentials / Data Exfiltration",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Exposed AWS keys → Unauthorized console access → S3 bucket enumeration → Data exfiltration",
+        "keyTTPs": [
+            "T1078 — Valid Accounts",
+            "T1537 — Transfer Data to Cloud Account",
+            "T1083 — File and Directory Discovery",
+            "T1071.001 — Application Layer Protocol: Web Protocols"
+        ],
+        "simulationContext": "Ride-sharing company with AWS-hosted databases storing driver and rider PII. Cloud keys accidentally pushed to GitHub. SIEM, CloudTrail, and EDR active. Backup in place but no MFA on some IAM users.",
+        "roleHints": {
+            "network": "Look for anomalous external IP traffic accessing AWS endpoints.",
+            "endpoint": "Check which hosts accessed cloud storage using leaked credentials.",
+            "ir_lead": "Assess exposure impact and coordinate credential rotation.",
+            "solo": "Correlate CloudTrail, SIEM alerts, and GitHub logs to identify attacker access."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_uber_init",
+                "irPhase": "Preparation",
+                "prompt": "CloudTrail shows an unknown IP using AWS keys to list S3 buckets containing sensitive PII. What is your first step?",
+                "analystContext": "Preliminary analysis indicates that the credentials originated from a publicly available GitHub repository.",
+                "networkContext": "Firewall logs show external connections to AWS S3 endpoints from unexpected IPs.",
+                "endpointContext": "EDR detects API calls from known developer workstations using exposed credentials.",
+                "irLeadContext": "Immediate containment is necessary to prevent further exfiltration.",
+                "options": [
+                    {
+                        "actionText": "Revoke the exposed AWS keys immediately.",
+                        "isCorrect": True,
+                        "consequence": "Access with leaked keys terminated; attacker blocked from further S3 enumeration.",
+                        "nextStageId": "s1_uber_detect",
+                        "technicalExplanation": "Immediate key revocation mitigates T1078 credential misuse and stops ongoing T1537 exfiltration."
+                    },
+                    {
+                        "actionText": "Monitor activity to collect more forensic data first.",
+                        "isCorrect": False,
+                        "consequence": "Attacker continues accessing sensitive S3 data.",
+                        "nextStageId": "s_uber_crisis",
+                        "technicalExplanation": "Delaying revocation allows continued T1537 exfiltration.",
+                        "failBranchStageId": "s_uber_crisis"
+                    },
+                    {
+                        "actionText": "Notify management before taking any technical action.",
+                        "isCorrect": False,
+                        "consequence": "Critical minutes lost; attacker continues exfiltrating data.",
+                        "nextStageId": "s_uber_crisis",
+                        "technicalExplanation": "Administrative delay does not stop ongoing data theft.",
+                        "failBranchStageId": "s_uber_crisis"
+                    },
+                    {
+                        "actionText": "Delete suspicious CloudTrail logs.",
+                        "isCorrect": False,
+                        "consequence": "Evidence lost; attacker remains active.",
+                        "nextStageId": "s_uber_crisis",
+                        "technicalExplanation": "Deleting logs does not prevent T1537 activity."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_uber_detect",
+                "irPhase": "Detection & Analysis",
+                "prompt": "AWS keys revoked. How do you determine which data was exfiltrated?",
+                "analystContext": "CloudTrail shows S3 GET requests performed using leaked credentials prior to revocation.",
+                "networkContext": "Firewall logs indicate external IP downloading multiple CSV files.",
+                "endpointContext": "EDR confirms developer workstations were used to push data before keys were revoked.",
+                "irLeadContext": "Scope determination is essential for customer notification and regulatory compliance.",
+                "options": [
+                    {
+                        "actionText": "Audit S3 access logs and cross-reference with CloudTrail.",
+                        "isCorrect": True,
+                        "consequence": "Data accessed by attacker identified; scope of exposure clarified.",
+                        "nextStageId": "s2_uber_remediate",
+                        "technicalExplanation": "Correlating T1078 and T1537 events allows full visibility into exfiltrated data."
+                    },
+                    {
+                        "actionText": "Assume no data was exfiltrated.",
+                        "isCorrect": False,
+                        "consequence": "Missed regulatory reporting; unknown exposure remains.",
+                        "nextStageId": "s_uber_crisis",
+                        "technicalExplanation": "Ignoring evidence of T1537 activity leaves compromise unresolved.",
+                        "failBranchStageId": "s_uber_crisis"
+                    },
+                    {
+                        "actionText": "Shut down all AWS services.",
+                        "isCorrect": False,
+                        "consequence": "Operational disruption; previous exfiltration not addressed.",
+                        "nextStageId": "s2_uber_remediate",
+                        "technicalExplanation": "Service shutdown is overly disruptive; scope must be determined first."
+                    },
+                    {
+                        "actionText": "Delete S3 bucket contents.",
+                        "isCorrect": False,
+                        "consequence": "Critical customer data lost; does not prevent prior exfiltration.",
+                        "nextStageId": "s2_uber_remediate",
+                        "technicalExplanation": "Destructive actions without forensic analysis compromise both operations and investigation."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_uber_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Scope identified. What remediation steps do you take?",
+                "analystContext": "All exposed keys revoked; suspicious activity blocked; S3 buckets reviewed.",
+                "networkContext": "All suspicious IPs blocked; access controls updated.",
+                "endpointContext": "EDR shows no active suspicious activity from developer workstations.",
+                "irLeadContext": "Ensure full containment, credential rotation, and future monitoring.",
+                "options": [
+                    {
+                        "actionText": "Rotate all affected IAM credentials and implement MFA on all accounts.",
+                        "isCorrect": True,
+                        "consequence": "Incident fully contained; future mitigation in place.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Credential rotation and MFA prevent reuse of compromised keys (mitigates T1078)."
+                    },
+                    {
+                        "actionText": "Restore old IAM credentials.",
+                        "isCorrect": False,
+                        "consequence": "Attacker could regain access.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Restoring compromised keys allows T1078 and T1537 attacks to continue."
+                    },
+                    {
+                        "actionText": "Delete CloudTrail logs.",
+                        "isCorrect": False,
+                        "consequence": "Loss of forensic evidence; regulatory non-compliance.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Preservation of logs is essential for post-incident review."
+                    },
+                    {
+                        "actionText": "Do nothing beyond revoking keys.",
+                        "isCorrect": False,
+                        "consequence": "Incomplete remediation; unknown exposure remains.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Additional actions (MFA, rotation, monitoring) are needed to fully mitigate T1078/T1537 threats."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_uber_crisis",
+                "irPhase": "Containment",
+                "prompt": "Failure to revoke keys immediately allowed significant data exfiltration. What is your immediate action?",
+                "analystContext": "CloudTrail shows multiple GET requests to S3 buckets containing rider/driver PII from attacker IP.",
+                "networkContext": "Firewall logs indicate large file transfers to external IP.",
+                "endpointContext": "EDR detects API calls from developer workstations with exposed keys.",
+                "irLeadContext": "Immediate containment and credential revocation required.",
+                "options": [
+                    {
+                        "actionText": "Revoke compromised AWS keys immediately.",
+                        "isCorrect": True,
+                        "consequence": "Exfiltration halted; remediation can continue.",
+                        "nextStageId": "s1_uber_detect",
+                        "technicalExplanation": "Immediate revocation stops ongoing T1078/T1537 activity."
+                    },
+                    {
+                        "actionText": "Monitor the activity without intervention.",
+                        "isCorrect": False,
+                        "consequence": "Data continues to be exfiltrated.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Passive monitoring fails to stop exfiltration."
+                    },
+                    {
+                        "actionText": "Notify management first.",
+                        "isCorrect": False,
+                        "consequence": "Delay allows further data loss.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Immediate technical response is critical."
+                    },
+                    {
+                        "actionText": "Shut down all cloud services.",
+                        "isCorrect": False,
+                        "consequence": "Service outage; exfiltration already occurred.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Extreme measures do not retroactively prevent data loss."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Exposed cloud credentials can lead to rapid data exfiltration.",
+            "Immediate revocation and rotation of compromised credentials is critical.",
+            "Correlating CloudTrail, EDR, and firewall logs allows accurate assessment of exposure."
+        ],
+        "referenceLinks": [
+            "https://www.csoonline.com/article/3240376/inside-the-uber-data-breach.html",
+            "https://attack.mitre.org/techniques/T1078/",
+            "https://www.cisa.gov/news-events/news/2016/10/21/uber-data-breach"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Misconfigured Cloud Buckets",
+    "description": "Investigate public cloud storage exposure resulting in user data access.",
+    "initial_prompt": "Your SOC is alerted to unusually high read operations on cloud storage holding user profiles. Preliminary reports suggest that a misconfigured cloud database bucket may have been publicly accessible. Analysts need to verify the exposure, contain access, and assess the impact on user data.",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "Misconfigured Cloud Storage / Data Exposure",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Publicly exposed S3 buckets → Unauthenticated read → Data scraping → PII collected",
+        "keyTTPs": [
+            "T1078 — Valid Accounts (if accessed via token)",
+            "T1537 — Transfer Data to Cloud Account",
+            "T1083 — File and Directory Discovery",
+            "T1041 — Exfiltration Over C2 Channel"
+        ],
+        "simulationContext": "Social media platform with multi-region cloud storage. Multiple S3 buckets misconfigured for public read access. SIEM monitoring, EDR, and proxy logs active. MFA and encryption partially enabled. Exposure unnoticed for multiple weeks.",
+        "roleHints": {
+            "network": "Analyze proxy logs and firewall for unusual GET requests to cloud endpoints.",
+            "endpoint": "Check if any internal workstations are accessing these buckets unexpectedly.",
+            "ir_lead": "Prioritize exposure containment and assess regulatory reporting requirements.",
+            "solo": "Correlate cloud storage logs, SIEM alerts, and proxy records to identify impacted data."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_facebook_init",
+                "irPhase": "Preparation",
+                "prompt": "You see repeated GET requests to cloud storage from anonymous IPs outside your organization. What is your first action?",
+                "analystContext": "Bucket configuration shows public read access. Logs indicate hundreds of thousands of objects were accessed.",
+                "networkContext": "Proxy logs indicate large outbound data transfer from cloud endpoint IPs to unknown external IPs.",
+                "endpointContext": "EDR does not show internal hosts initiating these transfers.",
+                "irLeadContext": "Immediate remediation is critical to prevent further user data exposure.",
+                "options": [
+                    {
+                        "actionText": "Restrict bucket permissions to authenticated users immediately.",
+                        "isCorrect": True,
+                        "consequence": "Public access terminated; further unauthorized reads stopped.",
+                        "nextStageId": "s1_facebook_detect",
+                        "technicalExplanation": "Changing bucket permissions mitigates T1537 and T1041 exposure. Immediate access control correction prevents ongoing exfiltration."
+                    },
+                    {
+                        "actionText": "Monitor the GET requests for additional patterns before taking action.",
+                        "isCorrect": False,
+                        "consequence": "Sensitive user data continues to be exposed publicly.",
+                        "nextStageId": "s_facebook_crisis",
+                        "technicalExplanation": "Delaying action allows uncontrolled T1537 exfiltration.",
+                        "failBranchStageId": "s_facebook_crisis"
+                    },
+                    {
+                        "actionText": "Notify legal and PR before remediating.",
+                        "isCorrect": False,
+                        "consequence": "Data exposure continues, possibly leading to regulatory fines.",
+                        "nextStageId": "s_facebook_crisis",
+                        "technicalExplanation": "Immediate technical remediation is needed before notifications.",
+                        "failBranchStageId": "s_facebook_crisis"
+                    },
+                    {
+                        "actionText": "Delete the bucket entirely.",
+                        "isCorrect": False,
+                        "consequence": "Data lost, but previous exfiltration not prevented.",
+                        "nextStageId": "s1_facebook_detect",
+                        "technicalExplanation": "Destruction does not stop prior unauthorized reads and impedes investigation."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_facebook_detect",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Bucket permissions corrected. How do you identify what data was accessed and by whom?",
+                "analystContext": "Cloud storage logs show access timestamps, object keys, and source IPs for previous GET requests.",
+                "networkContext": "Proxy logs show repeated external access attempts from multiple regions.",
+                "endpointContext": "EDR confirms no internal misuse; attacker likely external.",
+                "irLeadContext": "Determine scope and prepare notification for impacted users.",
+                "options": [
+                    {
+                        "actionText": "Audit bucket access logs and correlate with proxy logs.",
+                        "isCorrect": True,
+                        "consequence": "Identifies exact objects accessed and source IPs.",
+                        "nextStageId": "s2_facebook_remediate",
+                        "technicalExplanation": "Correlation of T1083 and T1537 events allows mapping of exposed data."
+                    },
+                    {
+                        "actionText": "Assume minimal data was accessed.",
+                        "isCorrect": False,
+                        "consequence": "Misjudged exposure; potential regulatory violations.",
+                        "nextStageId": "s_facebook_crisis",
+                        "technicalExplanation": "Ignoring log evidence leaves the incident unresolved.",
+                        "failBranchStageId": "s_facebook_crisis"
+                    },
+                    {
+                        "actionText": "Restore previous bucket settings.",
+                        "isCorrect": False,
+                        "consequence": "Public exposure resumes; prior data exfiltration not mitigated.",
+                        "nextStageId": "s2_facebook_remediate",
+                        "technicalExplanation": "Restoring misconfigured settings recreates the initial problem."
+                    },
+                    {
+                        "actionText": "Delete old access logs.",
+                        "isCorrect": False,
+                        "consequence": "Evidence for forensic and compliance purposes lost.",
+                        "nextStageId": "s2_facebook_remediate",
+                        "technicalExplanation": "Preserving logs is essential for scope and reporting."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_facebook_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Scope identified. What steps finalize remediation?",
+                "analystContext": "Buckets secured; logs preserved; impacted objects identified.",
+                "networkContext": "Blocked IPs from repeated access attempts.",
+                "endpointContext": "EDR shows no internal abuse.",
+                "irLeadContext": "Ensure future misconfigurations are prevented and prepare disclosure.",
+                "options": [
+                    {
+                        "actionText": "Implement automated bucket permission audits and enforce MFA for admin access.",
+                        "isCorrect": True,
+                        "consequence": "Future misconfigurations prevented; access monitored.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Proactive auditing and MFA mitigates T1078 and T1537 risks."
+                    },
+                    {
+                        "actionText": "Leave buckets as-is since access is blocked.",
+                        "isCorrect": False,
+                        "consequence": "Future misconfigurations remain possible.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Long-term exposure prevention requires auditing and access controls."
+                    },
+                    {
+                        "actionText": "Delete all exposed objects.",
+                        "isCorrect": False,
+                        "consequence": "Permanent data loss; previous exfiltration already occurred.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Destruction alone does not resolve exposure or compliance issues."
+                    },
+                    {
+                        "actionText": "Disable cloud logging to reduce alert noise.",
+                        "isCorrect": False,
+                        "consequence": "Loss of forensic visibility for future incidents.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Logging is critical for detection and post-incident analysis."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_facebook_crisis",
+                "irPhase": "Containment",
+                "prompt": "Delay in action allowed additional data exposure. What is your immediate response?",
+                "analystContext": "External IPs accessed hundreds of thousands of objects. Bucket remains publicly readable.",
+                "networkContext": "Proxy logs show ongoing unauthorized GET requests.",
+                "endpointContext": "No internal compromise detected.",
+                "irLeadContext": "Urgent bucket permission correction required.",
+                "options": [
+                    {
+                        "actionText": "Restrict bucket permissions immediately.",
+                        "isCorrect": True,
+                        "consequence": "Further unauthorized reads prevented.",
+                        "nextStageId": "s1_facebook_detect",
+                        "technicalExplanation": "Immediate access control correction mitigates ongoing T1537/T1083 exposure."
+                    },
+                    {
+                        "actionText": "Continue monitoring for evidence collection.",
+                        "isCorrect": False,
+                        "consequence": "Data continues to leak.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Passive monitoring does not stop exfiltration."
+                    },
+                    {
+                        "actionText": "Notify management before action.",
+                        "isCorrect": False,
+                        "consequence": "Delay allows more user data to be exposed.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Immediate technical intervention is critical."
+                    },
+                    {
+                        "actionText": "Delete the bucket.",
+                        "isCorrect": False,
+                        "consequence": "Data destroyed but prior exposure remains; investigation hindered.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Destructive action alone does not prevent prior data exfiltration."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Misconfigured cloud storage can expose large volumes of PII externally.",
+            "Immediate access control remediation is critical to stop exfiltration.",
+            "Correlating cloud logs, proxy logs, and SIEM alerts is essential to determine scope."
+        ],
+        "referenceLinks": [
+            "https://www.csoonline.com/article/3457115/facebook-data-leak.html",
+            "https://attack.mitre.org/techniques/T1537/",
+            "https://www.cisa.gov/news-events/news/2019/12/18/facebook-cloud-storage-leak"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Log4Shell Intrusion",
+    "description": "Respond to remote code execution attempts exploiting Log4j vulnerabilities in enterprise applications.",
+    "initial_prompt": "Alerts indicate unusual outbound network connections from your web application servers. Logs show suspicious JNDI lookups originating from internal Java processes. Analysts must investigate, contain, and remediate the potential Log4Shell exploitation across the environment.",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "Log4Shell / Remote Code Execution",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Exposed Java application → JNDI LDAP lookup → Remote code execution → Malware download → Data exfiltration",
+        "keyTTPs": [
+            "T1190 — Exploit Public-Facing Application",
+            "T1059.001 — Command and Scripting Interpreter: PowerShell (for payload execution)",
+            "T1071.001 — Application Layer Protocol: Web Protocols",
+            "T1041 — Exfiltration Over C2 Channel"
+        ],
+        "simulationContext": "Enterprise with multiple Java-based web apps on Tomcat. Some web apps still running vulnerable Log4j 2.x. SIEM, EDR, and network IDS deployed. Partial patching and firewall rules in place. Initial exploitation detected via web server logs and outbound anomalies.",
+        "roleHints": {
+            "network": "Monitor firewall and IDS for outbound LDAP, HTTP, and unusual connections from app servers.",
+            "endpoint": "Check EDR for anomalous PowerShell or Java process execution on web servers.",
+            "ir_lead": "Determine scope, prioritize patching, and contain any remote code execution quickly.",
+            "solo": "Correlate SIEM alerts, web logs, and EDR telemetry to identify affected hosts."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_log4shell_init",
+                "irPhase": "Preparation",
+                "prompt": "SIEM alerts show multiple JNDI lookup attempts from internal web servers. What should be your first action?",
+                "analystContext": "Multiple Tomcat hosts generating unusual LDAP requests. Some alerts indicate successful remote code execution attempts.",
+                "networkContext": "IDS shows outbound LDAP traffic to external IPs not seen before.",
+                "endpointContext": "EDR shows Java process spawning PowerShell scripts.",
+                "irLeadContext": "Immediate action required to prevent lateral movement or data exfiltration.",
+                "options": [
+                    {
+                        "actionText": "Isolate affected web servers from the network immediately.",
+                        "isCorrect": True,
+                        "consequence": "Potential exploitation contained; prevents lateral movement.",
+                        "nextStageId": "s1_log4shell_detect",
+                        "technicalExplanation": "Network isolation stops T1190 and T1041 activity, containing further compromise."
+                    },
+                    {
+                        "actionText": "Continue monitoring traffic for more clues before acting.",
+                        "isCorrect": False,
+                        "consequence": "Remote code execution continues; attacker may pivot to other servers.",
+                        "nextStageId": "s_log4shell_crisis",
+                        "technicalExplanation": "Delay allows further T1190 exploitation and potential T1071.001 exfiltration.",
+                        "failBranchStageId": "s_log4shell_crisis"
+                    },
+                    {
+                        "actionText": "Notify management before taking any technical action.",
+                        "isCorrect": False,
+                        "consequence": "Exploitation continues; risk of data loss increases.",
+                        "nextStageId": "s_log4shell_crisis",
+                        "technicalExplanation": "Immediate containment is critical to stop T1190/T1041 activity.",
+                        "failBranchStageId": "s_log4shell_crisis"
+                    },
+                    {
+                        "actionText": "Restart the web servers to clear memory.",
+                        "isCorrect": False,
+                        "consequence": "Exploit may persist; attackers may still have code running.",
+                        "nextStageId": "s1_log4shell_detect",
+                        "technicalExplanation": "Restarting does not remove persisted malware or prevent external C2 connections."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_log4shell_detect",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Servers isolated. How do you verify which hosts were compromised and what actions were executed?",
+                "analystContext": "EDR and Tomcat logs available; outbound traffic captured in IDS.",
+                "networkContext": "Firewall logs show unusual outbound connections from specific hosts.",
+                "endpointContext": "Java processes executed PowerShell scripts downloading additional binaries.",
+                "irLeadContext": "Determine scope, impacted hosts, and required remediation.",
+                "options": [
+                    {
+                        "actionText": "Correlate EDR process logs with web and IDS logs to identify executed payloads.",
+                        "isCorrect": True,
+                        "consequence": "Impacted hosts and executed malicious scripts identified.",
+                        "nextStageId": "s2_log4shell_remediate",
+                        "technicalExplanation": "Correlation of T1059.001 and T1041 events helps map exploitation and potential data exfiltration."
+                    },
+                    {
+                        "actionText": "Assume only the initially alerted servers are affected.",
+                        "isCorrect": False,
+                        "consequence": "Other compromised hosts may remain undetected.",
+                        "nextStageId": "s_log4shell_crisis",
+                        "technicalExplanation": "Ignoring correlated evidence risks incomplete containment.",
+                        "failBranchStageId": "s_log4shell_crisis"
+                    },
+                    {
+                        "actionText": "Delete web server logs to simplify analysis.",
+                        "isCorrect": False,
+                        "consequence": "Forensic evidence lost; cannot determine scope.",
+                        "nextStageId": "s2_log4shell_remediate",
+                        "technicalExplanation": "Preserving logs is essential to confirm T1190 and T1071.001 activity."
+                    },
+                    {
+                        "actionText": "Patch web servers without analyzing logs.",
+                        "isCorrect": False,
+                        "consequence": "Remediation may miss persisted malware or lateral movement.",
+                        "nextStageId": "s2_log4shell_remediate",
+                        "technicalExplanation": "Patch alone does not detect or remove payloads that already executed."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_log4shell_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "You have identified affected hosts and scripts. What remediation actions do you take?",
+                "analystContext": "Hosts identified; binaries located; outbound C2 connections blocked.",
+                "networkContext": "Firewall rules updated to prevent external LDAP/HTTP connections.",
+                "endpointContext": "EDR ready to remove malicious binaries and scripts.",
+                "irLeadContext": "Ensure complete eradication and patch vulnerable software.",
+                "options": [
+                    {
+                        "actionText": "Remove malicious scripts and binaries, patch Log4j to latest version, validate with EDR scans.",
+                        "isCorrect": True,
+                        "consequence": "Exploitation eradicated and future vulnerabilities mitigated.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Combines removal of payload (T1059.001) with patching to prevent further T1190 activity."
+                    },
+                    {
+                        "actionText": "Only patch Log4j without removing binaries.",
+                        "isCorrect": False,
+                        "consequence": "Attacker may maintain persistent access.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Patching alone does not remove already deployed T1059.001 scripts."
+                    },
+                    {
+                        "actionText": "Quarantine affected hosts without patching.",
+                        "isCorrect": False,
+                        "consequence": "Immediate threat contained, but vulnerable hosts remain.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Quarantine without patching leaves the environment susceptible to repeated T1190 exploitation."
+                    },
+                    {
+                        "actionText": "Restart IDS and clear logs to remove alert noise.",
+                        "isCorrect": False,
+                        "consequence": "Detection capabilities lost; cannot confirm eradication.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Clearing logs compromises forensic analysis and future detection."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_log4shell_crisis",
+                "irPhase": "Containment",
+                "prompt": "Delay in action allowed further exploitation. What is your immediate response?",
+                "analystContext": "Multiple hosts running vulnerable Log4j code contacted external C2 endpoints. Scripts running on several servers.",
+                "networkContext": "Outbound LDAP and HTTP connections ongoing.",
+                "endpointContext": "PowerShell scripts spawned by Java processes still active.",
+                "irLeadContext": "Containment is critical to prevent lateral movement and data exfiltration.",
+                "options": [
+                    {
+                        "actionText": "Isolate all affected hosts immediately.",
+                        "isCorrect": True,
+                        "consequence": "Further exploitation halted; lateral movement contained.",
+                        "nextStageId": "s1_log4shell_detect",
+                        "technicalExplanation": "Network isolation stops T1190/T1071.001 activity, allowing remediation."
+                    },
+                    {
+                        "actionText": "Continue monitoring to gather evidence.",
+                        "isCorrect": False,
+                        "consequence": "Additional hosts compromised; attacker gains persistence.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Monitoring alone does not stop ongoing T1190 and T1059.001 activity."
+                    },
+                    {
+                        "actionText": "Notify management first.",
+                        "isCorrect": False,
+                        "consequence": "Critical delay; exploitation spreads.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Immediate technical containment is required before reporting."
+                    },
+                    {
+                        "actionText": "Reboot affected hosts without patching.",
+                        "isCorrect": False,
+                        "consequence": "Scripts may restart; vulnerability remains.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Rebooting does not remove malicious payloads or patch vulnerable Log4j instances."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Immediate isolation of compromised servers prevents further remote code execution.",
+            "Correlating EDR, IDS, firewall, and application logs is essential to identify exploitation scope.",
+            "Patching vulnerable software alone is insufficient; active payloads must be removed."
+        ],
+        "referenceLinks": [
+            "https://www.cisa.gov/uscert/ncas/alerts/aa21-337a",
+            "https://attack.mitre.org/techniques/T1190/",
+            "https://www.lunasec.io/docs/blog/log4j-zero-day/"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: MOVEit Exploit Response",
+    "description": "Investigate and respond to a zero-day MOVEit Transfer SQL injection exploit affecting file transfer servers.",
+    "initial_prompt": "Alerts indicate unusual database queries and suspicious web requests targeting your MOVEit Transfer servers. Analysts must identify exploited hosts, contain further unauthorized access, and assess any exfiltrated data.",
+    "difficulty_level": "medium",
+    "max_attempts": 3,
+    "scenario_structure": {
+        "ransomwareFamily": "MOVEit Transfer / SQLi RCE",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "External attacker → SQL injection in MOVEit Transfer web app → Remote code execution → File exfiltration → Data exposure",
+        "keyTTPs": [
+            "T1190 — Exploit Public-Facing Application",
+            "T1059.001 — Command and Scripting Interpreter: PowerShell",
+            "T1041 — Exfiltration Over C2 Channel",
+            "T1071.001 — Application Layer Protocol: Web Protocols"
+        ],
+        "simulationContext": "Enterprise uses MOVEit Transfer for file distribution. Web servers running MOVEit vulnerable to a zero-day SQL injection. SIEM and EDR deployed. Some logs indicate unusual file download activity from external IPs.",
+        "roleHints": {
+            "network": "Check web server logs, firewall, and proxy for unusual HTTP requests and exfiltration activity.",
+            "endpoint": "Check EDR for unusual process execution and file transfers initiated by web services.",
+            "ir_lead": "Identify compromised servers, scope of exfiltrated data, and coordinate patching and containment.",
+            "solo": "Correlate web server logs, EDR, and SIEM alerts to identify the exploited endpoints and exfiltrated files."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_moveit_init",
+                "irPhase": "Preparation",
+                "prompt": "Web server alerts indicate suspicious SQL queries and unexpected file access patterns. What is your first step?",
+                "analystContext": "Multiple MOVEit servers showing unusual SQL query errors and outbound data transfer attempts.",
+                "networkContext": "Firewall logs show unusual HTTP requests from external IPs to MOVEit web portals.",
+                "endpointContext": "EDR reports web process spawning PowerShell to access local file shares.",
+                "irLeadContext": "Early containment is critical to prevent further exfiltration.",
+                "options": [
+                    {
+                        "actionText": "Immediately isolate affected MOVEit servers from the network.",
+                        "isCorrect": True,
+                        "consequence": "Potential exfiltration stopped; prevents further exploitation.",
+                        "nextStageId": "s1_moveit_detect",
+                        "technicalExplanation": "Network isolation halts T1190 exploitation and T1041 exfiltration attempts, allowing safe investigation."
+                    },
+                    {
+                        "actionText": "Monitor traffic to gather more evidence before acting.",
+                        "isCorrect": False,
+                        "consequence": "Data exfiltration continues; attacker may pivot to other hosts.",
+                        "nextStageId": "s_moveit_crisis",
+                        "technicalExplanation": "Delaying containment risks additional data exposure and lateral movement.",
+                        "failBranchStageId": "s_moveit_crisis"
+                    },
+                    {
+                        "actionText": "Restart MOVEit services to clear temporary files.",
+                        "isCorrect": False,
+                        "consequence": "Attack continues; temporary files may not remove payloads.",
+                        "nextStageId": "s1_moveit_detect",
+                        "technicalExplanation": "Restarting services does not stop T1190 or T1059.001 activity."
+                    },
+                    {
+                        "actionText": "Notify management before technical action.",
+                        "isCorrect": False,
+                        "consequence": "Delay allows attacker to exfiltrate more files.",
+                        "nextStageId": "s_moveit_crisis",
+                        "technicalExplanation": "Immediate technical containment is required to prevent T1041 exfiltration.",
+                        "failBranchStageId": "s_moveit_crisis"
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_moveit_detect",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Servers isolated. How do you identify all compromised files and potential exfiltrated data?",
+                "analystContext": "EDR and web server logs available; firewall shows outbound file transfers.",
+                "networkContext": "Proxy and firewall logs indicate HTTP POSTs with large payloads to unknown IPs.",
+                "endpointContext": "PowerShell scripts initiated by web services copying files to temp directories.",
+                "irLeadContext": "Need accurate scope to remediate fully and notify stakeholders if data was exfiltrated.",
+                "options": [
+                    {
+                        "actionText": "Correlate EDR file activity with web server and proxy logs to identify exfiltrated files.",
+                        "isCorrect": True,
+                        "consequence": "Impacted hosts and exfiltrated files identified.",
+                        "nextStageId": "s2_moveit_remediate",
+                        "technicalExplanation": "Correlating T1059.001 activity with T1041 exfiltration data provides full visibility into exploitation."
+                    },
+                    {
+                        "actionText": "Assume only initially alerted servers are affected.",
+                        "isCorrect": False,
+                        "consequence": "Other compromised hosts may remain undetected.",
+                        "nextStageId": "s_moveit_crisis",
+                        "technicalExplanation": "Ignoring correlation risks incomplete containment.",
+                        "failBranchStageId": "s_moveit_crisis"
+                    },
+                    {
+                        "actionText": "Delete web logs to simplify analysis.",
+                        "isCorrect": False,
+                        "consequence": "Evidence lost; cannot confirm scope.",
+                        "nextStageId": "s2_moveit_remediate",
+                        "technicalExplanation": "Log preservation is essential for forensic verification of T1190 activity."
+                    },
+                    {
+                        "actionText": "Patch servers without analyzing logs.",
+                        "isCorrect": False,
+                        "consequence": "Exfiltrated files may go unnoticed; attacker may persist.",
+                        "nextStageId": "s2_moveit_remediate",
+                        "technicalExplanation": "Patching alone does not identify already exfiltrated data."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_moveit_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "You have identified exfiltrated files and compromised hosts. What remediation actions do you take?",
+                "analystContext": "EDR ready to remove malicious scripts; firewall rules applied to block external connections.",
+                "networkContext": "External connections blocked; logs preserved for forensic analysis.",
+                "endpointContext": "EDR tools ready to remove scripts and monitor for persistence.",
+                "irLeadContext": "Ensure complete eradication and patch vulnerable software to prevent recurrence.",
+                "options": [
+                    {
+                        "actionText": "Remove malicious scripts, patch MOVEit servers, validate with EDR, and review exfiltrated files.",
+                        "isCorrect": True,
+                        "consequence": "Exploitation mitigated; environment secured.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Combination of T1059.001 removal, patching, and forensic review ensures containment and eradication."
+                    },
+                    {
+                        "actionText": "Patch servers only.",
+                        "isCorrect": False,
+                        "consequence": "Attacker may still have payloads; exfiltrated files not reviewed.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Patching alone does not remove active malware or verify data exposure."
+                    },
+                    {
+                        "actionText": "Quarantine servers without patching.",
+                        "isCorrect": False,
+                        "consequence": "Immediate threat contained but vulnerability persists.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Quarantine without patching leaves environment susceptible to repeated exploitation."
+                    },
+                    {
+                        "actionText": "Clear SIEM alerts without remediation.",
+                        "isCorrect": False,
+                        "consequence": "Detection lost; attack not addressed.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Ignoring alerts does not remediate T1190 or T1041 activity."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_moveit_crisis",
+                "irPhase": "Containment",
+                "prompt": "Delay allowed further exploitation. What is your immediate response?",
+                "analystContext": "Multiple MOVEit servers contacted external IPs. PowerShell scripts active.",
+                "networkContext": "Outbound HTTP POSTs ongoing; potential exfiltration to unknown IPs.",
+                "endpointContext": "EDR shows multiple processes still accessing sensitive files.",
+                "irLeadContext": "Containment is critical to stop ongoing exfiltration.",
+                "options": [
+                    {
+                        "actionText": "Immediately isolate all affected servers.",
+                        "isCorrect": True,
+                        "consequence": "Further exfiltration halted; allows remediation.",
+                        "nextStageId": "s1_moveit_detect",
+                        "technicalExplanation": "Network isolation stops T1190 and T1041 activity, enabling safe detection and remediation."
+                    },
+                    {
+                        "actionText": "Monitor to gather more evidence.",
+                        "isCorrect": False,
+                        "consequence": "Additional files exfiltrated; risk increases.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Monitoring alone does not prevent ongoing exploitation."
+                    },
+                    {
+                        "actionText": "Notify management before technical action.",
+                        "isCorrect": False,
+                        "consequence": "Critical delay; attacker continues exfiltration.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Immediate containment is required to stop T1041 activity."
+                    },
+                    {
+                        "actionText": "Restart affected servers without patching.",
+                        "isCorrect": False,
+                        "consequence": "Scripts may restart; vulnerability remains.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Restarting does not remove payloads or patch the vulnerability."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Immediate isolation of compromised servers prevents further data exfiltration.",
+            "Correlation of web server, EDR, and proxy logs is critical to determine full scope.",
+            "Patching alone is insufficient; active malicious scripts must be removed."
+        ],
+        "referenceLinks": [
+            "https://www.cisa.gov/uscert/ics/advisories/icsa-23-103-01",
+            "https://attack.mitre.org/techniques/T1190/",
+            "https://www.helpnetsecurity.com/2023/06/16/moveit-zero-day/"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Citrix Portal Compromise",
+    "description": "Respond to a ransomware attack exploiting unprotected Citrix portals, leading to patient data exposure.",
+    "initial_prompt": "Your SOC detects multiple logins from unusual IPs into the Citrix web portal, followed by suspicious file encryption activity on file servers. Analysts must identify compromised accounts, stop lateral movement, and recover affected systems.",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "Conti/MAZE (Windows, AES-256 + RSA-2048)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Exposed Citrix portal → Valid credentials → Lateral movement via RDP → File encryption → Backup deletion",
+        "keyTTPs": [
+            "T1078 — Valid Accounts",
+            "T1021.001 — Remote Services: RDP",
+            "T1486 — Data Encrypted for Impact",
+            "T1070.004 — File Deletion",
+            "T1110 — Brute Force"
+        ],
+        "simulationContext": "Healthcare organization with Citrix web access, Windows domain environment, EDR and SIEM deployed. Backup retention exists but not fully segmented. Recent alerts indicate unusual RDP logins and encryption activity on file servers.",
+        "roleHints": {
+            "network": "Check Citrix logs, firewall, and VPN for suspicious remote access and lateral movement.",
+            "endpoint": "Use EDR and Sysmon logs to trace ransomware execution, file encryption, and credential use.",
+            "ir_lead": "Assess scope of data encrypted and exposed, prioritize recovery of critical patient systems.",
+            "solo": "Correlate web portal, RDP, EDR, and SIEM alerts to detect the ransomware spread and contain impacted hosts."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_chc_initial",
+                "irPhase": "Preparation",
+                "prompt": "Unusual logins are detected on the Citrix portal from external IPs. What should be your first action?",
+                "analystContext": "Multiple accounts triggered alerts for unusual access from foreign IPs.",
+                "networkContext": "Firewall logs confirm remote logins over non-standard ports to the Citrix portal.",
+                "endpointContext": "No ransomware processes detected yet; EDR shows credential use for RDP sessions.",
+                "irLeadContext": "Immediate containment critical to prevent further encryption and exfiltration.",
+                "options": [
+                    {
+                        "actionText": "Force password reset for all Citrix portal users and block suspicious IPs.",
+                        "isCorrect": True,
+                        "consequence": "Unauthorized access stopped; attackers’ initial foothold removed.",
+                        "nextStageId": "s1_chc_detect",
+                        "technicalExplanation": "Revoking compromised credentials and blocking attacker IPs prevents T1078 lateral movement and potential ransomware execution."
+                    },
+                    {
+                        "actionText": "Monitor activity for 24 hours to gather more evidence.",
+                        "isCorrect": False,
+                        "consequence": "Ransomware executes on multiple file servers; encryption begins.",
+                        "nextStageId": "s_chc_crisis",
+                        "technicalExplanation": "Delaying action allows T1486 file encryption and T1070.004 deletion, increasing impact.",
+                        "failBranchStageId": "s_chc_crisis"
+                    },
+                    {
+                        "actionText": "Disable Citrix portal entirely without notifying users.",
+                        "isCorrect": False,
+                        "consequence": "User impact and operational disruption; attackers may pivot to RDP.",
+                        "nextStageId": "s1_chc_detect",
+                        "technicalExplanation": "Disabling portal alone doesn’t address lateral movement or active ransomware execution."
+                    },
+                    {
+                        "actionText": "Notify management before technical containment.",
+                        "isCorrect": False,
+                        "consequence": "Critical delay; encryption continues and backups may be deleted.",
+                        "nextStageId": "s_chc_crisis",
+                        "technicalExplanation": "Immediate containment is necessary to prevent T1486 impact.",
+                        "failBranchStageId": "s_chc_crisis"
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_chc_detect",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Some servers report encryption activity. How do you identify all impacted hosts and encrypted data?",
+                "analystContext": "EDR alerts indicate multiple servers with Conti ransomware processes and deleted backup files.",
+                "networkContext": "Firewall and VPN logs show RDP sessions from suspicious IPs across several hosts.",
+                "endpointContext": "Sysmon shows PowerShell processes invoked from compromised accounts encrypting files in multiple directories.",
+                "irLeadContext": "Correctly scoping impacted systems is critical for timely recovery and breach notification.",
+                "options": [
+                    {
+                        "actionText": "Correlate EDR, Sysmon, and firewall logs to identify all affected hosts and encrypted data.",
+                        "isCorrect": True,
+                        "consequence": "Full scope of impact identified; containment plan can proceed.",
+                        "nextStageId": "s2_chc_remediate",
+                        "technicalExplanation": "Combining multiple sources ensures identification of all T1486 and T1070.004 activity for remediation."
+                    },
+                    {
+                        "actionText": "Assume only hosts triggering initial alerts are impacted.",
+                        "isCorrect": False,
+                        "consequence": "Some encrypted servers remain undetected; ransomware spreads further.",
+                        "nextStageId": "s_chc_crisis",
+                        "technicalExplanation": "Partial analysis risks incomplete containment and further T1486 damage.",
+                        "failBranchStageId": "s_chc_crisis"
+                    },
+                    {
+                        "actionText": "Shut down all servers to stop ransomware.",
+                        "isCorrect": False,
+                        "consequence": "Major operational disruption; attackers may have already exfiltrated data.",
+                        "nextStageId": "s2_chc_remediate",
+                        "technicalExplanation": "Shutdown stops encryption but does not identify compromised accounts or exfiltrated data."
+                    },
+                    {
+                        "actionText": "Delete ransomware processes without analyzing logs.",
+                        "isCorrect": False,
+                        "consequence": "Ransomware partially removed; scope unknown; attacker may persist.",
+                        "nextStageId": "s2_chc_remediate",
+                        "technicalExplanation": "Analysis and correlation are essential for complete eradication of T1486 activity."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_chc_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "You now know all impacted hosts and data. What remediation steps should you take?",
+                "analystContext": "EDR can remove ransomware; backups are partially available; network rules can isolate impacted hosts.",
+                "networkContext": "Block all RDP connections from suspicious IPs; verify firewall and VPN logs.",
+                "endpointContext": "Use EDR to kill ransomware processes, restore from backups where possible.",
+                "irLeadContext": "Ensure full containment, recovery of critical healthcare systems, and minimize patient impact.",
+                "options": [
+                    {
+                        "actionText": "Isolate impacted hosts, remove ransomware via EDR, restore from verified backups, reset credentials, and review logs.",
+                        "isCorrect": True,
+                        "consequence": "Ransomware eradicated; systems recovered; impact contained.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Full remediation addresses T1486 encryption, T1070.004 deletion, and T1078 compromised accounts."
+                    },
+                    {
+                        "actionText": "Restore backups without isolation or credential reset.",
+                        "isCorrect": False,
+                        "consequence": "Attacker may still have active access; ransomware could reinfect restored servers.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Failure to isolate and reset credentials leaves environment vulnerable to T1078 persistence."
+                    },
+                    {
+                        "actionText": "Reinstall servers without restoring backups.",
+                        "isCorrect": False,
+                        "consequence": "Critical patient data permanently lost; operational impact severe.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Reinstallation without backup restoration results in loss of sensitive data and service disruption."
+                    },
+                    {
+                        "actionText": "Clear logs after remediation.",
+                        "isCorrect": False,
+                        "consequence": "Loss of forensic evidence; cannot confirm full scope.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Preserving logs is critical for T1078 and T1486 forensic analysis."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_chc_crisis",
+                "irPhase": "Containment",
+                "prompt": "Delay or poor initial action allowed ransomware to encrypt multiple hosts. What is the immediate priority?",
+                "analystContext": "EDR detects Conti processes on several servers; backup deletion underway.",
+                "networkContext": "RDP sessions from attacker IPs still active; outbound connections for exfiltration detected.",
+                "endpointContext": "PowerShell encryption processes active across shared directories.",
+                "irLeadContext": "Rapid containment essential to prevent further data loss.",
+                "options": [
+                    {
+                        "actionText": "Immediately isolate all impacted hosts and block attacker IPs.",
+                        "isCorrect": True,
+                        "consequence": "Further encryption stopped; remediation can proceed.",
+                        "nextStageId": "s1_chc_detect",
+                        "technicalExplanation": "Isolation halts ongoing T1486 and T1070.004 activity, allowing safe analysis and remediation."
+                    },
+                    {
+                        "actionText": "Monitor for more signs of attacker activity.",
+                        "isCorrect": False,
+                        "consequence": "Additional encryption and deletion occur; data exposure worsens.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Monitoring alone does not stop T1486 impact."
+                    },
+                    {
+                        "actionText": "Notify management before containment.",
+                        "isCorrect": False,
+                        "consequence": "Critical delay; ransomware continues to encrypt files.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Immediate technical action required to prevent T1486 impact."
+                    },
+                    {
+                        "actionText": "Restart servers without isolating hosts.",
+                        "isCorrect": False,
+                        "consequence": "Ransomware may restart; encryption continues; backups remain vulnerable.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Restarting without isolation does not remove active ransomware or compromised credentials."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Exposed portals without MFA can allow rapid ransomware spread using valid credentials.",
+            "Timely isolation and credential resets are critical to contain T1078 and T1486 activity.",
+            "Correlating endpoint, network, and SIEM data ensures full scope of ransomware impact is identified."
+        ],
+        "referenceLinks": [
+            "https://www.cisa.gov/uscert/ncas/alerts/aa24-042a",
+            "https://attack.mitre.org/techniques/T1078/",
+            "https://www.helpnetsecurity.com/2024/02/15/change-healthcare-ransomware/"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Cloud Credential Compromise",
+    "description": "Respond to unauthorized access in Snowflake caused by compromised credentials, impacting customer data.",
+    "initial_prompt": "Alerts indicate unusual access patterns in Snowflake, including queries from unfamiliar IP ranges and creation of new user roles. Analysts must determine the extent of access, stop ongoing unauthorized activity, and secure cloud accounts.",
+    "difficulty_level": "medium",
+    "max_attempts": 3,
+    "scenario_structure": {
+        "ransomwareFamily": "N/A – Credential-based data exfiltration",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Compromised cloud credentials → Suspicious queries → New role creation → Potential data exfiltration",
+        "keyTTPs": [
+            "T1078 — Valid Accounts",
+            "T1537 — Transfer Data to Cloud Account",
+            "T1070.004 — File Deletion",
+            "T1083 — File and Directory Discovery"
+        ],
+        "simulationContext": "Cloud-based data warehouse environment with Snowflake accounts, multiple teams, and activity monitored via SIEM. Logs include user activity, API access, and role changes. Security monitoring detects unusual access and potential exfiltration.",
+        "roleHints": {
+            "network": "Examine IP geolocation anomalies and unexpected connections to Snowflake endpoints.",
+            "endpoint": "Not applicable – cloud-only scenario; focus on user actions and API logs.",
+            "ir_lead": "Prioritize revocation of compromised credentials and customer impact assessment.",
+            "solo": "Correlate user activity, role changes, and query logs to identify the scope of compromise."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_snow_initial",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Unusual queries and new roles are detected. What should be your first step?",
+                "analystContext": "Several users triggered alerts for queries outside normal patterns; new roles have elevated privileges.",
+                "networkContext": "Logins observed from IPs not associated with the organization’s usual ranges.",
+                "endpointContext": "N/A – cloud-only activity.",
+                "irLeadContext": "Immediate action needed to prevent further data exfiltration.",
+                "options": [
+                    {
+                        "actionText": "Revoke suspected compromised credentials immediately and block unusual IPs.",
+                        "isCorrect": True,
+                        "consequence": "Ongoing unauthorized access is stopped, limiting potential exfiltration.",
+                        "nextStageId": "s1_snow_scope",
+                        "technicalExplanation": "Revoking credentials and blocking IPs mitigates T1078 abuse and prevents T1537 data transfer."
+                    },
+                    {
+                        "actionText": "Monitor activity for 24 hours to gather more evidence.",
+                        "isCorrect": False,
+                        "consequence": "Unauthorized queries continue; potential data exfiltration occurs.",
+                        "nextStageId": "s_snow_crisis",
+                        "technicalExplanation": "Delaying mitigation allows attackers to transfer data via T1537."
+                    },
+                    {
+                        "actionText": "Notify management before technical action.",
+                        "isCorrect": False,
+                        "consequence": "Delay in containment; more data may be accessed or copied.",
+                        "nextStageId": "s_snow_crisis",
+                        "technicalExplanation": "Immediate credential revocation is required to stop T1078 exploitation.",
+                        "failBranchStageId": "s_snow_crisis"
+                    },
+                    {
+                        "actionText": "Delete newly created roles without addressing suspicious accounts.",
+                        "isCorrect": False,
+                        "consequence": "Attackers retain access with existing accounts; exfiltration continues.",
+                        "nextStageId": "s1_snow_scope",
+                        "technicalExplanation": "Role deletion alone does not remove attacker access or stop T1537 activity."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_snow_scope",
+                "irPhase": "Detection & Analysis",
+                "prompt": "You have blocked suspicious IPs and revoked credentials. How do you determine what data may have been accessed or exfiltrated?",
+                "analystContext": "Snowflake audit logs show queries and role activity from compromised accounts.",
+                "networkContext": "Check for unusual outbound connections or transfers from Snowflake endpoints.",
+                "endpointContext": "N/A",
+                "irLeadContext": "Accurately assessing scope helps determine customer impact and regulatory obligations.",
+                "options": [
+                    {
+                        "actionText": "Analyze query logs, role changes, and API access to identify data accessed and exported.",
+                        "isCorrect": True,
+                        "consequence": "Scope of compromise identified; remediation plan can be developed.",
+                        "nextStageId": "s2_snow_remediate",
+                        "technicalExplanation": "Correlating logs from multiple sources identifies T1078 misuse and T1537 potential exfiltration."
+                    },
+                    {
+                        "actionText": "Assume only recently created roles were used for data access.",
+                        "isCorrect": False,
+                        "consequence": "Potential exfiltrated data may be missed; incomplete scope analysis.",
+                        "nextStageId": "s_snow_crisis",
+                        "technicalExplanation": "Partial analysis risks undetected T1537 activity and customer impact.",
+                        "failBranchStageId": "s_snow_crisis"
+                    },
+                    {
+                        "actionText": "Disable all accounts for 24 hours.",
+                        "isCorrect": False,
+                        "consequence": "Disrupts legitimate business operations; attackers may have already copied data.",
+                        "nextStageId": "s2_snow_remediate",
+                        "technicalExplanation": "Disruption alone does not identify accessed data or exfiltrated content."
+                    },
+                    {
+                        "actionText": "Delete logs to prevent attacker persistence.",
+                        "isCorrect": False,
+                        "consequence": "Forensic data lost; cannot verify scope of T1078 misuse or T1537 exfiltration.",
+                        "nextStageId": "s2_snow_remediate",
+                        "technicalExplanation": "Log preservation is critical for investigation and regulatory compliance."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_snow_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "With scope identified, how should you remediate and secure Snowflake accounts?",
+                "analystContext": "All compromised accounts are identified; unusual IPs blocked; audit logs preserved.",
+                "networkContext": "Enforce MFA for all cloud accounts; monitor for anomalous IP logins.",
+                "endpointContext": "N/A",
+                "irLeadContext": "Ensure data integrity and prevent recurrence; notify affected customers if needed.",
+                "options": [
+                    {
+                        "actionText": "Reset passwords for all impacted accounts, enforce MFA, review audit logs, and revoke unnecessary roles.",
+                        "isCorrect": True,
+                        "consequence": "Access fully secured; future exfiltration prevented; investigation completed.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Credential reset, MFA enforcement, and audit review mitigate T1078 risk and ensure T1537 activity cannot continue."
+                    },
+                    {
+                        "actionText": "Notify customers without securing accounts first.",
+                        "isCorrect": False,
+                        "consequence": "Ongoing unauthorized access may continue; data exposure risk remains.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Remediation must precede notification to prevent further T1537 incidents."
+                    },
+                    {
+                        "actionText": "Disable all Snowflake accounts permanently.",
+                        "isCorrect": False,
+                        "consequence": "Severe operational impact; unnecessary business disruption.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Disabling all accounts is excessive; targeted remediation suffices."
+                    },
+                    {
+                        "actionText": "Delete all logs post-incident.",
+                        "isCorrect": False,
+                        "consequence": "Forensic and compliance evidence lost.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Preserving logs is essential to verify scope of T1078 and T1537."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_snow_crisis",
+                "irPhase": "Containment",
+                "prompt": "Delayed containment allowed compromised accounts to continue accessing sensitive data. What must you do immediately?",
+                "analystContext": "Audit logs show continued queries and potential data exports to external locations.",
+                "networkContext": "Monitor unusual IPs and block all suspect connections.",
+                "endpointContext": "N/A",
+                "irLeadContext": "Containment needed to prevent further data exposure.",
+                "options": [
+                    {
+                        "actionText": "Immediately revoke compromised credentials and block suspicious IPs.",
+                        "isCorrect": True,
+                        "consequence": "Further unauthorized access halted; investigation can proceed safely.",
+                        "nextStageId": "s1_snow_scope",
+                        "technicalExplanation": "Revocation of accounts and IP blocking mitigates ongoing T1078 and T1537 activity."
+                    },
+                    {
+                        "actionText": "Continue monitoring for evidence.",
+                        "isCorrect": False,
+                        "consequence": "Additional data exfiltrated; breach scope grows.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Monitoring alone allows ongoing T1537 activity."
+                    },
+                    {
+                        "actionText": "Notify management before action.",
+                        "isCorrect": False,
+                        "consequence": "Critical delay; data exposure continues.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Immediate technical mitigation required to prevent further T1537 activity."
+                    },
+                    {
+                        "actionText": "Delete logs to prevent attacker persistence.",
+                        "isCorrect": False,
+                        "consequence": "Forensic trail destroyed; cannot determine scope.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Log preservation is essential for investigation and regulatory reporting."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Cloud credential compromise allows rapid unauthorized access without malware deployment.",
+            "Immediate credential revocation and IP blocking are critical to stopping T1078 and T1537 activity.",
+            "Analyzing cloud audit logs ensures accurate assessment of impacted data and supports regulatory compliance."
+        ],
+        "referenceLinks": [
+            "https://www.cisa.gov/news-events/news/alert-aa24-XXX-snowflake-incident",
+            "https://attack.mitre.org/techniques/T1078/",
+            "https://www.snowflake.com/blog/data-security-best-practices"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: Mortgage Data Encryption",
+    "description": "Respond to a ransomware attack that has encrypted LoanDepot’s critical mortgage and customer databases.",
+    "initial_prompt": "Multiple alerts indicate that several file servers and endpoints have been encrypted with ransom notes appearing on user desktops. Analysts must contain the ransomware, determine the attack vector, and restore critical services while preventing further data loss.",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "LockBit 3.0 (C++ based, AES-256 + RSA-2048)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Phishing email → Macro-enabled document → Endpoint compromise → Lateral movement via SMB → File encryption → Backup deletion",
+        "keyTTPs": [
+            "T1566.001 — Phishing: Spearphishing Attachment",
+            "T1059.003 — Command and Scripting Interpreter: Windows Command Shell",
+            "T1071.001 — Application Layer Protocol: Web Protocols",
+            "T1486 — Data Encrypted for Impact",
+            "T1490 — Inhibit System Recovery"
+        ],
+        "simulationContext": "Large financial organization with Windows-based servers and workstations, centralized backup systems, and EDR solutions. Network segmentation is partial, and several endpoints lack full patching. SIEM collects Windows Event Logs, Sysmon, EDR alerts, and firewall logs. Backup verification is incomplete.",
+        "roleHints": {
+            "network": "Investigate SMB traffic spikes, unusual outbound web connections, and remote access activity.",
+            "endpoint": "Check EDR alerts for suspicious PowerShell, macro execution, and file encryption processes.",
+            "ir_lead": "Prioritize containment and backup integrity; decide on possible business continuity measures.",
+            "solo": "Correlate EDR, Sysmon, and SIEM events to trace initial infection and lateral movement."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_loan_initial",
+                "irPhase": "Detection & Analysis",
+                "prompt": "EDR alerts indicate encryption processes on multiple endpoints. What is your immediate action?",
+                "analystContext": "Ransom notes have appeared, encrypted file extensions identified, and several servers report failed backup writes.",
+                "networkContext": "SMB traffic shows abnormal patterns between workstations and file servers.",
+                "endpointContext": "EDR flags PowerShell scripts creating encrypted files and dropping ransom notes.",
+                "irLeadContext": "Business-critical systems are impacted; urgent containment required.",
+                "options": [
+                    {
+                        "actionText": "Isolate affected endpoints and servers from the network immediately.",
+                        "isCorrect": True,
+                        "consequence": "Further encryption is stopped, lateral movement is contained.",
+                        "nextStageId": "s1_loan_investigate",
+                        "technicalExplanation": "Immediate isolation mitigates T1486 and T1490 impact, preventing further ransomware spread."
+                    },
+                    {
+                        "actionText": "Attempt to decrypt files using available backup tools before isolation.",
+                        "isCorrect": False,
+                        "consequence": "Ransomware continues to propagate; backups may also be compromised.",
+                        "nextStageId": "s_loan_crisis",
+                        "technicalExplanation": "Without isolation, ransomware continues executing T1486 and may delete backups (T1490).",
+                        "failBranchStageId": "s_loan_crisis"
+                    },
+                    {
+                        "actionText": "Notify all employees to shutdown their machines immediately.",
+                        "isCorrect": False,
+                        "consequence": "Partial mitigation; some endpoints already encrypted, lateral movement continues.",
+                        "nextStageId": "s1_loan_investigate",
+                        "technicalExplanation": "User shutdowns alone are insufficient to stop automated ransomware execution and lateral movement."
+                    },
+                    {
+                        "actionText": "Ignore alerts and continue monitoring for attack pattern confirmation.",
+                        "isCorrect": False,
+                        "consequence": "Ransomware spreads to all networked drives; backups at risk.",
+                        "nextStageId": "s_loan_crisis",
+                        "technicalExplanation": "Delay in containment allows T1486 and T1490 to continue, worsening impact.",
+                        "failBranchStageId": "s_loan_crisis"
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_loan_investigate",
+                "irPhase": "Detection & Analysis",
+                "prompt": "Endpoints are isolated. How do you identify the initial infection vector and scope of encryption?",
+                "analystContext": "EDR logs show macro execution in email attachments; Sysmon captures process creation chains and lateral SMB connections.",
+                "networkContext": "Firewall logs show unusual external connections correlating with malicious command-and-control traffic.",
+                "endpointContext": "PowerShell and Win32 API calls executed by msword.exe; EDR alerts correlate to encryption of user directories.",
+                "irLeadContext": "Understanding the initial vector is critical for preventing future attacks and legal compliance.",
+                "options": [
+                    {
+                        "actionText": "Analyze EDR, Sysmon, and mail server logs to trace the phishing email and lateral movement.",
+                        "isCorrect": True,
+                        "consequence": "Initial infection vector identified; full scope of encrypted systems mapped.",
+                        "nextStageId": "s2_loan_remediate",
+                        "technicalExplanation": "Correlating T1566.001 with T1071.001 activity allows mapping of T1486 impact and lateral spread."
+                    },
+                    {
+                        "actionText": "Restore backup immediately to the first infected server.",
+                        "isCorrect": False,
+                        "consequence": "Backup may be encrypted or incomplete; ransomware may still spread via uncontained endpoints.",
+                        "nextStageId": "s_loan_crisis",
+                        "technicalExplanation": "Restoration without full scope or isolation risks repeated T1486 infection.",
+                        "failBranchStageId": "s_loan_crisis"
+                    },
+                    {
+                        "actionText": "Reboot all endpoints to clear ransomware memory.",
+                        "isCorrect": False,
+                        "consequence": "Some processes may persist; encryption resumes on unpatched hosts.",
+                        "nextStageId": "s2_loan_remediate",
+                        "technicalExplanation": "Ransomware writes to disk (T1486), so reboot alone does not remove threat."
+                    },
+                    {
+                        "actionText": "Delete logs to reduce alert noise.",
+                        "isCorrect": False,
+                        "consequence": "Forensic trail destroyed; cannot assess scope or report accurately.",
+                        "nextStageId": "s2_loan_remediate",
+                        "technicalExplanation": "Log preservation is essential for T1566.001 and T1486 investigation."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_loan_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Scope confirmed. How do you recover systems and prevent reinfection?",
+                "analystContext": "EDR alerts isolated, backup verification required, patching incomplete on several servers.",
+                "networkContext": "Implement firewall rules to block SMB and C2 traffic, monitor network for rogue connections.",
+                "endpointContext": "Deploy EDR scripts to remove ransomware binaries and remediate encrypted endpoints.",
+                "irLeadContext": "Critical business services must resume securely and safely.",
+                "options": [
+                    {
+                        "actionText": "Restore systems from verified backups, patch vulnerabilities, enforce MFA, and apply network segmentation.",
+                        "isCorrect": True,
+                        "consequence": "Systems restored securely; lateral movement prevented; risk of reinfection minimized.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Comprehensive remediation addresses T1486, T1490, and T1566.001 attack chain."
+                    },
+                    {
+                        "actionText": "Pay the ransom immediately to restore files.",
+                        "isCorrect": False,
+                        "consequence": "No guarantee of file restoration; encourages future attacks.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Payment does not eliminate T1486 risk or attacker persistence."
+                    },
+                    {
+                        "actionText": "Reinstall OS on affected servers without restoring from backup.",
+                        "isCorrect": False,
+                        "consequence": "Data permanently lost; business continuity severely impacted.",
+                        "nextStageId": None,
+                        "technicalExplanation": "OS reinstall alone does not restore critical data and disrupts operations."
+                    },
+                    {
+                        "actionText": "Ignore patching and allow users to resume work on isolated endpoints.",
+                        "isCorrect": False,
+                        "consequence": "Vulnerabilities remain; ransomware could reinfect environment.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Patching and hardening are essential to prevent recurrence of T1486 and T1490."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_loan_crisis",
+                "irPhase": "Containment",
+                "prompt": "Delayed containment allowed ransomware to encrypt more endpoints and file servers. Immediate remediation is required. What action do you take?",
+                "analystContext": "Ransom notes proliferate; backup verification shows some backups partially encrypted.",
+                "networkContext": "SMB traffic and command-and-control channels remain active.",
+                "endpointContext": "PowerShell processes creating encrypted files continue on unisolated endpoints.",
+                "irLeadContext": "Critical data at risk; operational impact increasing.",
+                "options": [
+                    {
+                        "actionText": "Isolate all remaining endpoints and servers, block C2 traffic, and revoke administrative sessions.",
+                        "isCorrect": True,
+                        "consequence": "Ransomware propagation halted; further damage contained.",
+                        "nextStageId": "s1_loan_investigate",
+                        "technicalExplanation": "Isolation and C2 blocking prevent T1486 and T1490 from affecting additional hosts."
+                    },
+                    {
+                        "actionText": "Notify management and wait for instructions.",
+                        "isCorrect": False,
+                        "consequence": "Ransomware continues spreading; backups compromised.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Immediate containment action is required; management notification alone does not stop T1486."
+                    },
+                    {
+                        "actionText": "Restart infected servers to clear malicious processes.",
+                        "isCorrect": False,
+                        "consequence": "Processes persist after reboot; further encryption occurs.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Disk-based encryption continues; reboot does not terminate T1486 activity."
+                    },
+                    {
+                        "actionText": "Delete ransom notes to reduce panic.",
+                        "isCorrect": False,
+                        "consequence": "Encryption continues; forensic evidence lost.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Removing ransom notes does not mitigate ransomware and destroys logs needed for investigation."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Rapid isolation of infected endpoints is critical in halting ransomware propagation.",
+            "Comprehensive log correlation across EDR, Sysmon, and firewall systems is essential to trace attack vectors.",
+            "Verified backups, patching, and network segmentation reduce impact and prevent reinfection."
+        ],
+        "referenceLinks": [
+            "https://www.cisa.gov/AA24-XXX",
+            "https://attack.mitre.org/techniques/T1486/",
+            "https://attack.mitre.org/techniques/T1566/001/"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: LoanDepot Encryption Incident",
+    "description": "Respond to a ransomware attack encrypting LoanDepot customer records and threatening exposure.",
+    "initial_prompt": "Multiple internal alerts indicate suspicious file encryption across several servers. Analysts must determine the ransomware family, isolate affected systems, and prevent exfiltration of sensitive customer records before the situation escalates.",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "LockBit 3.0 (Rust-based, AES-256 + RSA-2048 encryption)",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Phishing email → Malicious macro → RDP lateral movement → Domain admin compromise → Ransomware deploy → Backup deletion",
+        "keyTTPs": [
+            "T1566.001 — Spearphishing Attachment",
+            "T1021.001 — Remote Services: RDP",
+            "T1078 — Valid Accounts",
+            "T1486 — Data Encrypted for Impact",
+            "T1490 — Inhibit System Recovery"
+        ],
+        "simulationContext": "Mid-sized mortgage provider; hybrid cloud and on-prem servers; EDR deployed on endpoints; partial backups exist; SOC uses SIEM for correlation. Analysts must coordinate between endpoint and network logs to contain the attack.",
+        "roleHints": {
+            "network": "Look for lateral RDP connections and unusual SMB activity between servers.",
+            "endpoint": "Check for suspicious macro execution and ransomware process creation.",
+            "ir_lead": "Prioritize isolation of domain admin and critical servers to limit encryption spread.",
+            "solo": "Correlate logs and alerts to identify infected hosts, prevent backup destruction, and map TTPs."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_loandepot_initial",
+                "irPhase": "Detection & Analysis",
+                "prompt": "EDR alerts show mass file encryption starting from FS-DB01. What is your first step?",
+                "analystContext": "File extensions .locked appearing across finance and HR shares; multiple endpoints reporting ransomware process LockBit.exe.",
+                "networkContext": "SMB traffic spikes detected from WS-ADMIN03 to FS-DB01.",
+                "endpointContext": "LockBit process observed spawning multiple child processes; macro execution logs present.",
+                "irLeadContext": "Customer data at risk; immediate containment needed.",
+                "options": [
+                    {
+                        "actionText": "Shut down FS-DB01 immediately to stop encryption.",
+                        "isCorrect": True,
+                        "consequence": "Encryption halted on FS-DB01; further lateral spread is contained.",
+                        "nextStageId": "s1_loandepot_investigate",
+                        "technicalExplanation": "Stopping the infected server immediately prevents T1486 impact; crucial in ransomware response."
+                    },
+                    {
+                        "actionText": "Allow encryption to complete to gather forensic evidence.",
+                        "isCorrect": False,
+                        "consequence": "Additional critical files are encrypted; recovery time increases.",
+                        "nextStageId": "s_loandepot_crisis",
+                        "technicalExplanation": "Delaying containment worsens T1486 impact; live response should prioritize stopping the spread.",
+                        "failBranchStageId": "s_loandepot_crisis"
+                    },
+                    {
+                        "actionText": "Notify management but take no technical action yet.",
+                        "isCorrect": False,
+                        "consequence": "Attack continues unchecked; backups may be destroyed.",
+                        "nextStageId": "s1_loandepot_investigate",
+                        "technicalExplanation": "Administrative notification does not stop T1486 or T1490; technical containment required."
+                    },
+                    {
+                        "actionText": "Reset all domain passwords immediately.",
+                        "isCorrect": False,
+                        "consequence": "Password reset may disrupt operations but does not halt ongoing ransomware processes.",
+                        "nextStageId": "s1_loandepot_investigate",
+                        "technicalExplanation": "Credential rotation is insufficient if ransomware already running; T1078 exploitation may continue."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_loandepot_investigate",
+                "irPhase": "Detection & Analysis",
+                "prompt": "FS-DB01 isolated. How do you identify the attack vector and compromised accounts?",
+                "analystContext": "EDR shows macro executed from email attachment; RDP sessions from WS-ADMIN03 used to move laterally.",
+                "networkContext": "RDP and SMB logs show unusual access patterns; external IPs not involved yet.",
+                "endpointContext": "User WS-ADMIN03 executed Excel macro; LockBit.exe present in %APPDATA%.",
+                "irLeadContext": "Pinpointing initial compromise is critical for full remediation.",
+                "options": [
+                    {
+                        "actionText": "Analyze email logs for phishing attachments targeting finance staff.",
+                        "isCorrect": True,
+                        "consequence": "Macro-based phishing identified; initial compromise vector confirmed.",
+                        "nextStageId": "s2_loandepot_remediate",
+                        "technicalExplanation": "T1566.001 identified as initial vector; correlating endpoint macro execution confirms origin of T1078 credential compromise."
+                    },
+                    {
+                        "actionText": "Block all SMB traffic temporarily.",
+                        "isCorrect": False,
+                        "consequence": "Lateral movement slows but attack vector remains unknown; operational disruption.",
+                        "nextStageId": "s2_loandepot_remediate",
+                        "technicalExplanation": "Blocking SMB helps containment but does not identify T1566.001 compromise."
+                    },
+                    {
+                        "actionText": "Shut down all endpoints immediately.",
+                        "isCorrect": False,
+                        "consequence": "Significant operational disruption; attackers may still have admin sessions on servers.",
+                        "nextStageId": "s2_loandepot_remediate",
+                        "technicalExplanation": "Endpoint shutdown is heavy-handed; focus should be on FS-DB01 and lateral accounts first."
+                    },
+                    {
+                        "actionText": "Ignore since FS-DB01 is isolated.",
+                        "isCorrect": False,
+                        "consequence": "Other endpoints may be infected; ransomware spread continues.",
+                        "nextStageId": "s_loandepot_crisis",
+                        "technicalExplanation": "T1486 and T1490 threats continue without broader investigation.",
+                        "failBranchStageId": "s_loandepot_crisis"
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_loandepot_remediate",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Phishing vector identified. What remediation steps do you take to secure the environment?",
+                "analystContext": "Macro-based phishing caused initial compromise; several admin accounts used for lateral movement.",
+                "networkContext": "SMB and RDP connections restricted; logs show attempted backup deletion.",
+                "endpointContext": "LockBit process terminated on affected endpoints.",
+                "irLeadContext": "Customer data and backups must be secured; full cleanup required.",
+                "options": [
+                    {
+                        "actionText": "Rotate all admin credentials, enable MFA, restore from unaffected backups, and monitor for anomalies.",
+                        "isCorrect": True,
+                        "consequence": "Environment secured; customer data protected; ransomware eradicated.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Addresses T1078, T1486, and T1490; restores systems to operational state safely."
+                    },
+                    {
+                        "actionText": "Delete infected backups to prevent further infection.",
+                        "isCorrect": False,
+                        "consequence": "Critical data permanently lost; recovery delayed.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Deleting backups removes the only recovery option; violates best practices for T1490 mitigation."
+                    },
+                    {
+                        "actionText": "Do nothing further since ransomware processes are terminated.",
+                        "isCorrect": False,
+                        "consequence": "Backup deletion risk remains; dormant malware may persist.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Termination alone does not prevent future T1486 impact or T1490 attacks."
+                    },
+                    {
+                        "actionText": "Inform management and wait for approval before remediation.",
+                        "isCorrect": False,
+                        "consequence": "Data continues to be at risk; ransomware could still spread.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Delay in action increases T1486 and T1490 impact; immediate remediation required."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_loandepot_crisis",
+                "irPhase": "Containment",
+                "prompt": "Ransomware spread due to delayed response. Critical customer files are now encrypted on multiple servers. What do you do?",
+                "analystContext": "Multiple endpoints reporting LockBit process; backups at risk; FS-DB01 isolated but secondary servers infected.",
+                "networkContext": "High SMB traffic between servers; lateral movement ongoing.",
+                "endpointContext": "LockBit.exe processes active on WS-FIN01 and WS-HR02.",
+                "irLeadContext": "Immediate action required to prevent total data loss.",
+                "options": [
+                    {
+                        "actionText": "Immediately isolate all infected hosts and revoke domain admin sessions.",
+                        "isCorrect": True,
+                        "consequence": "Further spread halted; containment in progress.",
+                        "nextStageId": "s1_loandepot_investigate",
+                        "technicalExplanation": "Revoking T1078 access and isolating hosts is key to halting T1486 encryption and T1490 backup deletion."
+                    },
+                    {
+                        "actionText": "Shut down the entire network.",
+                        "isCorrect": False,
+                        "consequence": "Operations halted; some ransomware may persist on powered-off endpoints.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Full shutdown is disruptive and may not remove ransomware or prevent T1490 attacks."
+                    },
+                    {
+                        "actionText": "Notify customers before containment.",
+                        "isCorrect": False,
+                        "consequence": "External communication without technical containment; sensitive data at risk.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Communication before containment exposes more risk; technical controls must come first."
+                    },
+                    {
+                        "actionText": "Attempt to decrypt files using unverified tools.",
+                        "isCorrect": False,
+                        "consequence": "May corrupt files further; ransomware impact increases.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Unverified decryption risks T1486 data integrity; containment and backups are primary."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Early isolation of infected hosts is critical in ransomware response.",
+            "Enable MFA and rotate credentials to prevent lateral movement via T1078.",
+            "Maintain offline or immutable backups to recover from T1486 and T1490 attacks."
+        ],
+        "referenceLinks": [
+            "https://www.cisa.gov/aa24-398a",
+            "https://attack.mitre.org/techniques/T1566/001/",
+            "https://attack.mitre.org/techniques/T1486/"
+        ]
+    }
+})
+SCENARIOS.append({
+    "name": "Operation: T-Mobile Data Breach Response",
+    "description": "Respond to a large-scale customer data breach involving personally identifiable information (PII) exposure.",
+    "initial_prompt": "Your SOC team has detected unusual outbound traffic from multiple user databases. Early reports indicate potential exfiltration of customer PII. You must investigate, contain, and remediate the incident before regulators and the public are notified.",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "N/A — Data Exfiltration via Credential Compromise",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Phished employee credentials → Lateral movement → Exfiltration to external cloud storage",
+        "keyTTPs": [
+            "T1078 — Valid Accounts",
+            "T1081 — Credentials in Files",
+            "T1041 — Exfiltration Over C2 Channel",
+            "T1071.001 — Application Layer Protocol: Web Protocols"
+        ],
+        "simulationContext": "Telecommunications company with millions of customer accounts. Standard SIEM, EDR, and network monitoring deployed. Backups exist but some legacy databases are only lightly monitored.",
+        "roleHints": {
+            "network": "Look for unusual egress patterns, cloud uploads, and VPN anomalies.",
+            "endpoint": "Check for login anomalies, remote session activity, and file access events.",
+            "ir_lead": "Prioritize containment of exposed accounts and assess regulatory obligations.",
+            "solo": "Focus on correlating logs from endpoints and network to trace the breach path."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_tmobile_initial_detection",
+                "irPhase": "Detection & Analysis",
+                "prompt": "You notice multiple alerts indicating large data exports from database servers. What is your first step?",
+                "analystContext": "SIEM shows spikes in outbound traffic from DB servers. EDR alerts report multiple logins from unusual IPs.",
+                "networkContext": "Firewall logs indicate data transfers to unfamiliar cloud storage endpoints.",
+                "endpointContext": "EDR logs show credentials being used on servers not normally accessed by those users.",
+                "irLeadContext": "Customers' personal data may be exfiltrated. Regulators may need notification within 72 hours.",
+                "options": [
+                    {
+                        "actionText": "Immediately shut down all database servers.",
+                        "isCorrect": False,
+                        "consequence": "Servers go offline, causing service outage, but attacker may have already exfiltrated data.",
+                        "nextStageId": "s1_tmobile_analysis",
+                        "technicalExplanation": "While containment is important, abrupt shutdown can disrupt service and does not necessarily prevent exfiltration. Proper analysis should guide containment."
+                    },
+                    {
+                        "actionText": "Analyze SIEM and endpoint logs to identify compromised accounts and lateral movement.",
+                        "isCorrect": True,
+                        "consequence": "You begin mapping the attacker activity and identify which accounts were compromised.",
+                        "nextStageId": "s1_tmobile_analysis",
+                        "technicalExplanation": "Correct approach: detection and analysis before disruptive containment allows informed actions."
+                    },
+                    {
+                        "actionText": "Notify the media immediately to warn customers.",
+                        "isCorrect": False,
+                        "consequence": "Premature disclosure could violate regulations and damage trust.",
+                        "nextStageId": "s1_tmobile_analysis",
+                        "technicalExplanation": "Incident response follows structured analysis and regulatory reporting, not immediate public announcements."
+                    },
+                    {
+                        "actionText": "Ignore alerts and continue monitoring.",
+                        "isCorrect": False,
+                        "consequence": "Attacker continues exfiltrating data, worsening the breach.",
+                        "nextStageId": "s1_tmobile_analysis",
+                        "technicalExplanation": "Ignoring alerts allows the breach to escalate, violating containment best practices.",
+                        "failBranchStageId": "s_tmobile_crisis_escalation"
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_tmobile_analysis",
+                "irPhase": "Containment",
+                "prompt": "You have identified the compromised accounts and confirmed exfiltration of several PII records. What is your next move?",
+                "analystContext": "Compromised credentials appear in multiple cloud endpoints. Some lateral movement to sensitive databases is evident.",
+                "networkContext": "VPN logs show remote connections from suspicious geolocations.",
+                "endpointContext": "EDR shows unusual process execution on DB servers under compromised accounts.",
+                "irLeadContext": "Regulatory reporting may be required if PII was exfiltrated. Containment needs careful planning.",
+                "options": [
+                    {
+                        "actionText": "Force password reset for compromised accounts and isolate affected servers.",
+                        "isCorrect": True,
+                        "consequence": "Attacker access is curtailed and sensitive systems are isolated.",
+                        "nextStageId": "s2_tmobile_remediation",
+                        "technicalExplanation": "Resetting credentials and isolating systems removes attacker persistence and stops further exfiltration."
+                    },
+                    {
+                        "actionText": "Delete all logs to prevent further alerts.",
+                        "isCorrect": False,
+                        "consequence": "Evidence is lost; incident investigation is compromised.",
+                        "nextStageId": "s2_tmobile_remediation",
+                        "technicalExplanation": "Tampering with logs is improper and may violate legal and regulatory requirements."
+                    },
+                    {
+                        "actionText": "Deploy fake data to confuse the attacker.",
+                        "isCorrect": False,
+                        "consequence": "May alert the attacker but does not stop exfiltration or remediate systems.",
+                        "nextStageId": "s2_tmobile_remediation",
+                        "technicalExplanation": "Deception can be useful tactically but should not replace proper containment and remediation."
+                    },
+                    {
+                        "actionText": "Shut down the corporate network entirely.",
+                        "isCorrect": False,
+                        "consequence": "Business operations are disrupted; attacker may have already exfiltrated data.",
+                        "nextStageId": "s2_tmobile_remediation",
+                        "technicalExplanation": "Extreme shutdown is rarely necessary; proper containment is more controlled.",
+                        "failBranchStageId": "s_tmobile_crisis_escalation"
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_tmobile_remediation",
+                "irPhase": "Eradication & Recovery",
+                "prompt": "The compromised accounts are reset, and servers isolated. How do you proceed to remediate and restore normal operations?",
+                "analystContext": "Backups are verified for integrity. Cloud storage accounts need auditing for exfiltrated data.",
+                "networkContext": "Network segmentation is partially enforced; firewall rules can be tightened.",
+                "endpointContext": "EDR shows no new suspicious logins after credential reset.",
+                "irLeadContext": "Regulatory obligations must be documented. Communication to customers may be required.",
+                "options": [
+                    {
+                        "actionText": "Audit cloud accounts, verify backups, and restore normal operations carefully.",
+                        "isCorrect": True,
+                        "consequence": "Systems are restored safely and breach is contained.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Proper remediation involves auditing affected systems, validating backups, and restoring services."
+                    },
+                    {
+                        "actionText": "Bring all systems online without auditing.",
+                        "isCorrect": False,
+                        "consequence": "Risk of reinfection or residual compromise remains.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Skipping audits leaves systems vulnerable to residual attacker access."
+                    },
+                    {
+                        "actionText": "Release public statement claiming breach was minor.",
+                        "isCorrect": False,
+                        "consequence": "Misinformation could trigger regulatory fines and reputational damage.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Communications must reflect factual assessment after thorough investigation."
+                    },
+                    {
+                        "actionText": "Delete backups to prevent future attacks.",
+                        "isCorrect": False,
+                        "consequence": "Irrecoverable data loss; unacceptable practice.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Deleting backups is destructive and violates disaster recovery principles."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_tmobile_crisis_escalation",
+                "irPhase": "Containment",
+                "prompt": "Due to delayed response, attacker continues exfiltrating PII. Emergency measures are needed to stop ongoing theft.",
+                "analystContext": "Multiple accounts still compromised; cloud egress continues at high volume.",
+                "networkContext": "Unusual traffic spikes detected in multiple regions.",
+                "endpointContext": "New suspicious logins detected on previously clean hosts.",
+                "irLeadContext": "Severe regulatory and reputational impact imminent if not contained.",
+                "options": [
+                    {
+                        "actionText": "Force immediate password reset for all affected accounts and isolate servers.",
+                        "isCorrect": True,
+                        "consequence": "Exfiltration is halted; incident can be fully remediated next.",
+                        "nextStageId": "s2_tmobile_remediation",
+                        "technicalExplanation": "Emergency containment restores control over compromised accounts and stops attacker activity."
+                    },
+                    {
+                        "actionText": "Ignore the new alerts and continue monitoring.",
+                        "isCorrect": False,
+                        "consequence": "Data exfiltration continues; breach worsens.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Ignoring escalating incidents violates containment and mitigation best practices."
+                    },
+                    {
+                        "actionText": "Shut down network without verifying backups.",
+                        "isCorrect": False,
+                        "consequence": "Severe business disruption; attacker may have already exfiltrated data.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Extreme action without preparation can damage operations and does not fully remediate exfiltrated data."
+                    },
+                    {
+                        "actionText": "Delete compromised accounts permanently.",
+                        "isCorrect": False,
+                        "consequence": "Critical user accounts lost; operational impact is severe.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Permanent deletion of accounts is unnecessarily destructive and not required for containment."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Rapid analysis and mapping of compromised credentials is essential for effective containment.",
+            "Emergency measures can mitigate ongoing exfiltration but proper investigation ensures long-term remediation.",
+            "Regulatory obligations and accurate reporting must be integrated into incident response planning."
+        ],
+        "referenceLinks": [
+            "https://attack.mitre.org/techniques/T1078/",
+            "https://attack.mitre.org/techniques/T1041/",
+            "https://www.cisa.gov/t-mobile-data-breach",
+        ],
+    },
+})
+SCENARIOS.append({
+    "name": "Operation: Ticketmaster Data Breach",
+    "description": "Investigate anomalous access and potential data exfiltration from a ticketing platform after suspicious cloud activity is detected.",
+    "initial_prompt": "The security operations center has detected unusual API calls from multiple internal servers to external cloud storage endpoints. You are tasked with determining whether this is legitimate activity or part of a breach affecting customer data.",
+    "difficulty_level": "hard",
+    "max_attempts": 2,
+    "scenario_structure": {
+        "ransomwareFamily": "N/A — Data Exfiltration via Cloud Misconfiguration",
+        "irPhase": "Detection & Analysis",
+        "attackVector": "Compromised cloud credentials → anomalous API calls → customer data access → potential exfiltration",
+        "keyTTPs": [
+            "T1078 — Valid Accounts",
+            "T1537 — Transfer Data to Cloud Account",
+            "T1041 — Exfiltration Over C2 Channel",
+            "T1110.003 — Brute Force: Cloud Services",
+            "T1083 — File and Directory Discovery"
+        ],
+        "simulationContext": "Large ticketing organization using cloud-based data storage for customer PII and payment info. Multiple API integrations exist with third-party services. Backup systems are online but segmented from primary data stores.",
+        "roleHints": {
+            "network": "Look for unusual outbound traffic to cloud storage endpoints, suspicious VPN/SSH connections.",
+            "endpoint": "Focus on EDR alerts for abnormal PowerShell or API client usage on internal hosts.",
+            "ir_lead": "Prioritize critical customer data exposure and decide on containment measures quickly.",
+            "solo": "Track unusual logins and API calls; determine if a compromise has occurred."
+        },
+        "decisionTree": [
+            {
+                "stageId": "s0_ticketmaster_initial",
+                "irPhase": "Detection & Analysis",
+                "prompt": "You notice multiple API requests to an external S3 endpoint originating from internal servers that do not usually interact with cloud storage. What is your first step?",
+                "analystContext": "API request logs and SIEM alerts indicate high-volume requests from WS-APP01 and WS-APP02 to unknown cloud endpoints.",
+                "networkContext": "Firewall logs show outbound connections to s3-external-ticketing.com on TCP/443 from multiple internal hosts.",
+                "endpointContext": "EDR reports PowerShell scripts executing aws-cli commands on WS-APP01 and WS-APP02.",
+                "irLeadContext": "Potential data exfiltration affecting tens of thousands of customer records.",
+                "options": [
+                    {
+                        "actionText": "Ignore the activity; it looks like normal API traffic.",
+                        "isCorrect": False,
+                        "consequence": "The unusual API calls continue unchecked, increasing the risk of massive customer data exfiltration.",
+                        "nextStageId": "s_ticketmaster_crisis",
+                        "technicalExplanation": "Ignoring anomalous traffic allows attackers to exfiltrate data. T1537 and T1041 indicate active transfer to a cloud account; early containment is crucial."
+                    },
+                    {
+                        "actionText": "Investigate the source servers and verify API credentials being used.",
+                        "isCorrect": True,
+                        "consequence": "You confirm that compromised credentials are being used on WS-APP01 and WS-APP02 and initiate containment steps.",
+                        "nextStageId": "s1_ticketmaster_containment",
+                        "technicalExplanation": "This step aligns with T1078 (Valid Accounts) and allows you to identify affected systems before further exfiltration occurs."
+                    },
+                    {
+                        "actionText": "Shut down all servers immediately to stop the activity.",
+                        "isCorrect": False,
+                        "consequence": "The sudden shutdown causes service disruption, affecting thousands of legitimate users and alerting attackers.",
+                        "nextStageId": "s1_ticketmaster_containment",
+                        "technicalExplanation": "Immediate shutdown without investigation may prevent further exfiltration but also disrupts services and prevents proper forensic analysis."
+                    },
+                    {
+                        "actionText": "Reset all user passwords organization-wide.",
+                        "isCorrect": False,
+                        "consequence": "Password reset may mitigate future misuse but does not stop ongoing exfiltration using already active sessions.",
+                        "nextStageId": "s1_ticketmaster_containment",
+                        "technicalExplanation": "Changing passwords alone is insufficient; attackers may have active sessions or tokens. Proper containment requires identifying and disabling active sessions."
+                    }
+                ]
+            },
+            {
+                "stageId": "s1_ticketmaster_containment",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "You have confirmed compromised credentials on two servers. What containment action do you take first?",
+                "analystContext": "Both WS-APP01 and WS-APP02 are connected to external S3 endpoints and transferring large amounts of customer PII.",
+                "networkContext": "Firewall rules can block outbound traffic; SIEM shows correlated alerts for suspicious S3 access.",
+                "endpointContext": "EDR allows isolating the hosts and killing malicious processes.",
+                "irLeadContext": "Containment should balance stopping exfiltration while preserving evidence.",
+                "options": [
+                    {
+                        "actionText": "Block outbound traffic to the suspicious S3 endpoint and isolate the servers.",
+                        "isCorrect": True,
+                        "consequence": "Exfiltration is stopped, servers are contained, and forensic data is preserved.",
+                        "nextStageId": "s2_ticketmaster_eradication",
+                        "technicalExplanation": "Blocking outbound traffic addresses T1537 and T1041, stopping active exfiltration, while isolation preserves forensic evidence."
+                    },
+                    {
+                        "actionText": "Delete all logs from WS-APP01 and WS-APP02 to hide attacker traces.",
+                        "isCorrect": False,
+                        "consequence": "Critical forensic evidence is lost, making post-incident analysis impossible.",
+                        "nextStageId": "s2_ticketmaster_eradication",
+                        "technicalExplanation": "Deleting logs violates basic DFIR principles and prevents root cause analysis."
+                    },
+                    {
+                        "actionText": "Inform all customers immediately without stopping exfiltration.",
+                        "isCorrect": False,
+                        "consequence": "Customers are informed but data continues to be stolen, increasing regulatory and reputational risk.",
+                        "nextStageId": "s2_ticketmaster_eradication",
+                        "technicalExplanation": "Notification alone does not mitigate ongoing exfiltration; containment must occur first."
+                    },
+                    {
+                        "actionText": "Reboot WS-APP01 and WS-APP02 to remove active sessions.",
+                        "isCorrect": False,
+                        "consequence": "Active sessions may be terminated temporarily, but attackers can re-establish connections if credentials remain active.",
+                        "nextStageId": "s2_ticketmaster_eradication",
+                        "technicalExplanation": "Rebooting is insufficient; proper isolation and credential revocation are required."
+                    }
+                ]
+            },
+            {
+                "stageId": "s2_ticketmaster_eradication",
+                "irPhase": "Containment, Eradication & Recovery",
+                "prompt": "Now that servers are isolated and traffic blocked, how do you ensure attackers cannot resume exfiltration?",
+                "analystContext": "The compromised API credentials are still valid, and tokens may be active.",
+                "networkContext": "SIEM shows no active data transfer post-blocking, but attacker may pivot to other servers.",
+                "endpointContext": "EDR can force logout sessions and remove cached credentials.",
+                "irLeadContext": "Eradication must fully remove attacker access before returning systems to service.",
+                "options": [
+                    {
+                        "actionText": "Revoke all API credentials used and rotate secrets for all cloud integrations.",
+                        "isCorrect": True,
+                        "consequence": "Attackers lose access; exfiltration cannot resume without new credentials.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Credential revocation ensures T1078 compromise is neutralized, preventing future exfiltration."
+                    },
+                    {
+                        "actionText": "Re-enable servers without changing credentials.",
+                        "isCorrect": False,
+                        "consequence": "Attackers regain access and may resume data exfiltration.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Returning servers to service without revoking credentials leaves T1078 attack vector open."
+                    },
+                    {
+                        "actionText": "Only update local Windows passwords, ignore cloud credentials.",
+                        "isCorrect": False,
+                        "consequence": "Attackers retain cloud access; data remains vulnerable.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Local account password changes do not mitigate cloud-based exfiltration."
+                    },
+                    {
+                        "actionText": "Delete affected customer data to prevent exfiltration.",
+                        "isCorrect": False,
+                        "consequence": "Data loss occurs, violating compliance and creating operational impact.",
+                        "nextStageId": None,
+                        "technicalExplanation": "Deleting data is not a containment strategy; proper credential revocation is required."
+                    }
+                ]
+            },
+            {
+                "stageId": "s_ticketmaster_crisis",
+                "irPhase": "Containment",
+                "prompt": "Because initial anomalous activity was ignored, attackers have transferred significant PII to external cloud storage. What immediate action must be taken?",
+                "analystContext": "SIEM shows sustained exfiltration from WS-APP01 and WS-APP02.",
+                "networkContext": "Outbound connections to s3-external-ticketing.com are active; firewall rules can block traffic.",
+                "endpointContext": "EDR confirms active PowerShell scripts and aws-cli processes on multiple hosts.",
+                "irLeadContext": "Regulatory notification may be required; containment must occur immediately.",
+                "options": [
+                    {
+                        "actionText": "Block outbound traffic to the cloud storage endpoint and isolate the affected servers.",
+                        "isCorrect": True,
+                        "consequence": "Exfiltration halts, and the incident can now be fully investigated and remediated.",
+                        "nextStageId": "s2_ticketmaster_eradication",
+                        "technicalExplanation": "Immediate network-level containment addresses T1537 and prevents further T1041 exfiltration."
+                    },
+                    {
+                        "actionText": "Continue monitoring to collect more forensic evidence.",
+                        "isCorrect": False,
+                        "consequence": "Data continues to be stolen; regulatory and reputational impact grows.",
+                        "nextStageId": "s2_ticketmaster_eradication",
+                        "technicalExplanation": "Monitoring alone does not stop exfiltration; urgent containment is required."
+                    },
+                    {
+                        "actionText": "Notify customers immediately without isolating servers.",
+                        "isCorrect": False,
+                        "consequence": "Attackers continue exfiltrating data; alerting customers prematurely may cause panic.",
+                        "nextStageId": "s2_ticketmaster_eradication",
+                        "technicalExplanation": "Containment must precede notification; otherwise, attackers retain access."
+                    },
+                    {
+                        "actionText": "Shut down all cloud services.",
+                        "isCorrect": False,
+                        "consequence": "Severe business disruption without necessarily stopping exfiltration if credentials are cached elsewhere.",
+                        "nextStageId": "s2_ticketmaster_eradication",
+                        "technicalExplanation": "Service shutdown is blunt and may not neutralize attacker access effectively."
+                    }
+                ]
+            }
+        ],
+        "lessonsLearned": [
+            "Always investigate anomalous cloud API activity immediately; ignoring warnings can escalate impact.",
+            "Credential compromise in cloud systems requires revocation and rotation to prevent ongoing exfiltration.",
+            "Containment must balance stopping attacker activity with preserving forensic evidence for post-incident analysis."
+        ],
+        "referenceLinks": [
+            "https://attack.mitre.org/techniques/T1078/",
+            "https://attack.mitre.org/techniques/T1537/",
+            "https://www.cisa.gov/news-events/news/understanding-cybersecurity-incident-response"
+        ]
+    }
+})
+
+
+
+
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Seed runner

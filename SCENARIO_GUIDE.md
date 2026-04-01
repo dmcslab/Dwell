@@ -6,36 +6,6 @@
 
 ---
 
-## Contents
-
-**Easy**
-1. [Operation: Encrypted Inbox](#1-operation-encrypted-inbox)
-2. [Operation: Cracked Software](#2-operation-cracked-software)
-3. [Operation: Payroll Zero](#3-operation-payroll-zero)
-
-**Medium**
-4. [Operation: Ghost Credential](#4-operation-ghost-credential)
-5. [Operation: Impersonation Call](#5-operation-impersonation-call)
-6. [Operation: Silent Exfiltration](#6-operation-silent-exfiltration)
-7. [Operation: Ready State](#7-operation-ready-state)
-8. [Operation: Threat Hunt](#8-operation-threat-hunt)
-9. [Operation: Exposed Gateway](#9-operation-exposed-gateway)
-10. [Operation: Cold Chain](#10-operation-cold-chain)
-
-**Hard**
-11. [Operation: SMB Storm](#11-operation-smb-storm)
-12. [Operation: Silent Loader](#12-operation-silent-loader)
-13. [Operation: Hypervisor Lockout](#13-operation-hypervisor-lockout)
-14. [Operation: Poisoned Update](#14-operation-poisoned-update)
-15. [Operation: RDP Breach](#15-operation-rdp-breach)
-16. [Operation: Exchange Breach](#16-operation-exchange-breach)
-17. [Operation: MSP Cascade](#17-operation-msp-cascade)
-18. [Operation: Zero Privilege](#18-operation-zero-privilege)
-19. [Operation: Dealer Blackout](#19-operation-dealer-blackout)
-20. [Operation: Claims Denied](#20-operation-claims-denied)
-
----
-
 ## How to read each entry
 
 **Based on** — the real-world incident that inspired the scenario. The simulation does not use real organisation names or confirmed technical details, but the attack pattern, tools, and decisions map closely to documented events.

@@ -13,7 +13,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/docker-required-blue?logo=docker" alt="Docker"/>
   <img src="https://img.shields.io/badge/setup-one_command-brightgreen" alt="One command"/>
-  <img src="https://img.shields.io/badge/scenarios-20-orange" alt="20 Scenarios"/>
+  <img src="https://img.shields.io/badge/scenarios-43-orange" alt="43 Scenarios"/>
   <img src="https://img.shields.io/badge/license-GPLv3-blue" alt="GPL v3.0"/>
 </p>
 
@@ -72,7 +72,7 @@ Wrong decisions have **narrative consequences** — choose poorly at containment
 
 | Feature | Details |
 |---|---|
-| **20 IR scenarios** | 3 easy / 7 medium / 10 hard, all with branching consequences |
+| **43 IR scenarios** | 3 easy / 17 medium / 23 hard, all with branching consequences |
 | **4 IR phases each** | Preparation → Detection → Containment → Eradication & Recovery |
 | **NIST SP 800-61r2** | Every stage maps to the incident response lifecycle |
 | **MITRE ATT&CK TTPs** | Technical explanations reference real attacker techniques |
@@ -84,33 +84,6 @@ Wrong decisions have **narrative consequences** — choose poorly at containment
 | **Admin panel** | Full scenario CRUD — build your own without touching JSON |
 | **Dark / light mode** | Persisted theme toggle |
 | **Self-hosted** | Your data never leaves your server |
-
----
-
-## Scenarios
-
-| # | Name | Difficulty | Key Topic |
-|---|---|---|---|
-| 1 | Operation: Encrypted Inbox | Easy | Phishing → Cobalt Strike |
-| 2 | Operation: SMB Storm | Hard | EternalBlue ransomware |
-| 3 | Operation: Silent Loader | Medium | BazarLoader → ransomware |
-| 4 | Operation: Ghost Credential | Medium | Credential stuffing + BEC |
-| 5 | Operation: Hypervisor Lockout | Hard | ESXi ransomware |
-| 6 | Operation: Silent Exfiltration | Medium | SQL injection + GDPR |
-| 7 | Operation: Impersonation Call | Easy | Vishing + helpdesk fraud |
-| 8 | Operation: Poisoned Update | Hard | Supply chain wiper |
-| 9 | Operation: RDP Breach | Medium | RDP brute force → ransomware |
-| 10 | Operation: Exchange Breach | Hard | ProxyLogon-style + persistence |
-| 11 | Operation: Cracked Software | Easy | Trojanised software |
-| 12 | Operation: Ready State | Medium | Testing your IR preparation |
-| 13 | Operation: MSP Cascade | Hard | RMM compromise → 8 clients |
-| 14 | Operation: Zero Privilege | Hard | Zerologon + Golden Ticket |
-| 15 | Operation: Threat Hunt | Medium | Active threat hunt → containment |
-| 16 | Operation: Exposed Gateway   | Medium | VPN exploit → REvil financial services attack |
-| 17 | Operation: Payroll Zero      | Easy   | Third-party SaaS ransomware — downstream HR crisis |
-| 18 | Operation: Cold Chain        | Medium | Food supply chain + IT/OT boundary decision |
-| 19 | Operation: Dealer Blackout   | Hard   | SaaS provider hit — 15,000 businesses locked out |
-| 20 | Operation: Claims Denied     | Hard   | Healthcare payments + HIPAA + OFAC ransom decision |
 
 ---
 
