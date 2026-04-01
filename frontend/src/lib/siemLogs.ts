@@ -272,6 +272,17 @@ const TEMPLATES: Record<string, LogTemplate[]> = {
     () => ({ severity: 'INFO',     source: 'EDR',      host: pick(ALL_HOSTS), eventId: 'EDR-0001',  message: `Host cleared: no active threats detected — cleared by IR analyst for reimaging` }),
     () => ({ severity: 'INFO',     source: 'SIEM',     host: 'SIEM-CORE',     eventId: 'SIEM-IR02', message: `Firewall rule applied: BLOCK inbound TCP/445 to SRV-DC01, SRV-DC02 — containment rule active` }),
   ],
+
+  // ── ICS / OT (T0800, T1499) ───────────────────────────────────────────────
+  ot_ics: [
+    () => ({ severity: 'CRITICAL', source: 'SIEM',     host: 'HMI-PLANT-01',   eventId: 'OT-9001',   message: `PLC firmware update initiated from engineering workstation — not in maintenance window — T0800` }),
+    () => ({ severity: 'CRITICAL', source: 'Firewall', host: 'SRV-HISTORIAN',   eventId: 'FW-OT01',   message: `IT→OT traffic: ${randIp(INTERNAL_IPS)} → 10.100.1.${randInt(10,50)}:${pick([502, 44818, 20000])} — bridged segment breach` }),
+    () => ({ severity: 'HIGH',     source: 'SIEM',     host: 'SRV-SCADA-GW',   eventId: 'OT-9002',   message: `Modbus write to holding register 40001 from non-SCADA source — process setpoint change — unauthorized` }),
+    () => ({ severity: 'CRITICAL', source: 'EDR',      host: 'ENG-WS-04',      eventId: 'EDR-OT01',  message: `Engineering software ${pick(['RSLogix','TIA Portal','FactoryTalk'])} spawned cmd.exe — anomalous child process on OT workstation` }),
+    () => ({ severity: 'HIGH',     source: 'SIEM',     host: 'HMI-PLANT-02',   eventId: 'OT-9003',   message: `Safety Instrumented System (SIS) communication loss — last heartbeat ${randInt(30,180)}s ago — possible isolation or tampering` }),
+    () => ({ severity: 'HIGH',     source: 'Firewall', host: 'SRV-FW-OT',      eventId: 'FW-OT02',   message: `Denied: TCP/${pick([3389, 445, 22])} from IT zone ${randIp(INTERNAL_IPS)} → OT zone 10.100.1.${randInt(1,50)} — segmentation rule active` }),
+    () => ({ severity: 'CRITICAL', source: 'SIEM',     host: 'SIEM-CORE',      eventId: 'OT-CORR',   message: `OT correlation: ${randInt(3,8)} PLCs report simultaneous firmware version mismatch — supply chain or mass update attack` }),
+  ],
 }
 
 // ── TTP → template category mapping ───────────────────────────────────────────
@@ -314,20 +325,34 @@ const TTP_CATEGORY_MAP: Record<string, string[]> = {
   'T1562': ['gpo_abuse', 'evasion'],             // Impair Defenses (AV disable via GPO)
   'T1598': ['bec', 'phishing'],                  // Phishing for Information (vishing/pretexting)
   'T1657': ['bec', 'exfil'],                     // Financial Theft (BEC wire fraud)
+  // ── 43-scenario expansion (unmapped TTPs from new scenarios) ───────────────
+  'T0800': ['ot_ics'],                            // Activate Firmware Update Mode (ICS)
+  'T1005': ['exfil'],                             // Data from Local System
+  'T1033': ['lateral', 'credential'],             // System Owner/User Discovery
+  'T1070': ['evasion'],                           // Indicator Removal (log clearing, timestomping)
+  'T1081': ['credential'],                        // Credentials in Files (deprecated → T1552.001)
+  'T1087': ['lateral', 'credential'],             // Account Discovery
+  'T1199': ['lateral', 'phishing'],               // Trusted Relationship (supply chain / MSP)
+  'T1489': ['encryption', 'wiper'],               // Service Stop (kill services before encryption)
+  'T1499': ['ot_ics'],                            // Endpoint Denial of Service (OT disruption)
+  'T1537': ['exfil'],                             // Transfer Data to Cloud Account
+  'T1558': ['credential'],                        // Steal or Forge Kerberos Tickets (Kerberoasting)
+  'T1590': ['phishing', 'lateral'],               // Gather Victim Network Information (recon)
 }
 
 // ── IR Phase → weighted category mix ──────────────────────────────────────────
 
 const PHASE_WEIGHTS: Record<string, { categories: string[]; baselineRatio: number }> = {
-  'Preparation':                        { categories: ['baseline', 'evasion', 'gpo_abuse'],                             baselineRatio: 0.7  },
+  'Preparation':                        { categories: ['baseline', 'evasion', 'gpo_abuse'],                                       baselineRatio: 0.7  },
   'Detection & Analysis':               { categories: ['phishing', 'c2', 'evasion', 'credential', 'bec', 'webshell', 'brute_force'], baselineRatio: 0.3  },
-  'Containment':                        { categories: ['lateral', 'smb_worm', 'encryption', 'c2', 'webshell', 'gpo_abuse', 'wiper'], baselineRatio: 0.15 },
-  'Containment, Eradication & Recovery':{ categories: ['encryption', 'lateral', 'recovery', 'wiper', 'gpo_abuse'],     baselineRatio: 0.2  },
-  'Eradication & Recovery':             { categories: ['recovery', 'baseline'],                                         baselineRatio: 0.4  },
-  'Post-Incident Activity':             { categories: ['recovery', 'baseline'],                                         baselineRatio: 0.6  },
+  'Containment':                        { categories: ['lateral', 'smb_worm', 'encryption', 'c2', 'webshell', 'gpo_abuse', 'wiper', 'ot_ics'], baselineRatio: 0.15 },
+  'Containment, Eradication & Recovery':{ categories: ['encryption', 'lateral', 'recovery', 'wiper', 'gpo_abuse'],                baselineRatio: 0.2  },
+  'Eradication & Recovery':             { categories: ['recovery', 'baseline'],                                                    baselineRatio: 0.4  },
+  'Eradication':                        { categories: ['recovery', 'baseline', 'evasion'],                                        baselineRatio: 0.4  },
+  'Post-Incident Activity':             { categories: ['recovery', 'baseline'],                                                    baselineRatio: 0.6  },
   // ── Emergency / crisis phases used in branch stages ───────────────────────
-  'Emergency Containment':              { categories: ['lateral', 'smb_worm', 'encryption', 'c2', 'wiper'],            baselineRatio: 0.05 },
-  'Emergency Response':                 { categories: ['lateral', 'encryption', 'c2', 'credential'],                   baselineRatio: 0.1  },
+  'Emergency Containment':              { categories: ['lateral', 'smb_worm', 'encryption', 'c2', 'wiper', 'ot_ics'],             baselineRatio: 0.05 },
+  'Emergency Response':                 { categories: ['lateral', 'encryption', 'c2', 'credential'],                              baselineRatio: 0.1  },
 }
 
 function getPhaseKey(irPhase: string): string {
