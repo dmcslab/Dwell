@@ -48,12 +48,29 @@ function clearSession() {
   try { sessionStorage.removeItem(SESSION_KEY) } catch {}
 }
 
+// ── Scenario completion tracking (localStorage) ──────────────────────────────
+// Stores completed scenario IDs so ScenarioSelector can show a badge.
+// ScenarioSelector reads from the same key independently.
+
+const COMPLETED_KEY = 'dwell_completed'
+
+function markScenarioCompleted(scenarioId: number) {
+  try {
+    const raw = localStorage.getItem(COMPLETED_KEY)
+    const ids: number[] = raw ? JSON.parse(raw) : []
+    if (!ids.includes(scenarioId)) {
+      ids.push(scenarioId)
+      localStorage.setItem(COMPLETED_KEY, JSON.stringify(ids))
+    }
+  } catch {}
+}
+
 // ── Route types ───────────────────────────────────────────────────────────────
 
 type Route =
   | { name: 'welcome' }
   | { name: 'selector' }
-  | { name: 'player';  scenarioId: number; sessionId: string; playerName: string; shareLink: string; joinToken: string; joinRole?: PlayerRole }
+  | { name: 'player';  scenarioId: number; sessionId: string; playerName: string; shareLink: string; joinToken: string; joinRole?: PlayerRole; joinSpectator?: boolean }
   | { name: 'join';    sessionId: string; joinToken: string }
   | { name: 'debrief'; summary: SessionSummary; scenario: ScenarioFull }
   | { name: 'admin' }
@@ -88,12 +105,10 @@ export default function App() {
     // Share link: #/join/{session_id}/{join_token}
     const joinMatch = hash.match(/^#\/join\/([^/]+)\/([^/]+)$/)
     if (joinMatch) {
-      // Even via share link, require a name
       if (!loadName()) return { name: 'welcome' }
       return { name: 'join', sessionId: joinMatch[1], joinToken: joinMatch[2] }
     }
 
-    // No name yet → welcome screen
     if (!loadName()) return { name: 'welcome' }
 
     // Restore in-progress session
@@ -111,13 +126,10 @@ export default function App() {
     return { name: 'selector' }
   })
 
-  // Track the route the user was on before entering admin,
-  // so the Back button can return them there.
   const [preAdminRoute, setPreAdminRoute] = useState<Route>({ name: 'selector' })
 
   const go = (r: Route) => {
     if (r.name === 'admin') {
-      // Remember where we came from
       setPreAdminRoute(route)
     }
 
@@ -136,16 +148,20 @@ export default function App() {
       window.location.hash = ''
     }
 
+    // Progress tracking: persist completed scenario to localStorage.
+    // ScenarioSelector reads this on mount to show completion badges.
+    if (r.name === 'debrief' && r.summary.outcome === 'complete') {
+      markScenarioCompleted(r.scenario.id)
+    }
+
     setRoute(r)
     window.scrollTo(0, 0)
   }
 
-  // Called from WelcomeScreen when name is submitted
   const handleNameSet = (name: string) => {
     saveName(name)
     setPlayerName(name)
 
-    // If arrived via share link, go there now
     const hash = window.location.hash
     const joinMatch = hash.match(/^#\/join\/([^/]+)\/([^/]+)$/)
     if (joinMatch) {
@@ -155,7 +171,6 @@ export default function App() {
     }
   }
 
-  // Called from ScenarioSelector when user clears their name
   const handleClearName = () => {
     clearName()
     clearSession()
@@ -181,7 +196,6 @@ export default function App() {
             }
             onAdmin={() => go({ name: 'admin' })}
           />
-          {/* Theme toggle: selector only */}
           <div className="fixed bottom-4 right-4 z-50">
             <ThemeToggle />
           </div>
@@ -196,6 +210,7 @@ export default function App() {
           initialShareLink={route.shareLink   || undefined}
           initialToken={route.joinToken       || undefined}
           initialRole={route.joinRole         || undefined}
+          initialSpectator={route.joinSpectator || false}
           onBack={() => go({ name: 'selector' })}
           onDebrief={(summary, scenario) => go({ name: 'debrief', summary, scenario })}
         />
@@ -206,7 +221,7 @@ export default function App() {
           sessionId={route.sessionId}
           joinToken={route.joinToken}
           onJoined={(scenarioId, sessionId, name, role, joinToken) =>
-            go({ name: 'player', scenarioId, sessionId, playerName: name, shareLink: '', joinToken, joinRole: role })
+            go({ name: 'player', scenarioId, sessionId, playerName: name, shareLink: '', joinToken, joinRole: role, joinSpectator: role === undefined })
           }
           onBack={() => go({ name: 'selector' })}
         />

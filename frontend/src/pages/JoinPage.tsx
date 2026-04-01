@@ -42,7 +42,8 @@ interface Props {
     scenarioId:  number,
     sessionId:   string,
     playerName:  string,
-    role:        PlayerRole,
+    // B6-6A: role is now optional — undefined signals spectator mode
+    role:        PlayerRole | undefined,
     joinToken:   string,
   ) => void
   onBack:     () => void
@@ -237,10 +238,12 @@ export function JoinPage({ sessionId, joinToken, onJoined, onBack }: Props) {
               </div>
             </div>
 
-            {/* Spectator option */}
+            {/* Spectator option — B6-6A: pass undefined for role to signal
+                spectator intent. App.tsx sets joinSpectator on the route, which
+                ScenarioPlayer reads to enter SpectatorView immediately. */}
             <div className="flex items-center justify-center">
               <button
-                  onClick={() => onJoined(info.scenario_id, sessionId, playerName.trim() || 'Spectator', 'solo', joinToken)}
+                  onClick={() => onJoined(info.scenario_id, sessionId, playerName.trim() || 'Spectator', undefined, joinToken)}
                 className="text-sm text-gray-500 hover:text-gray-300 underline underline-offset-2 transition-colors"
               >
                 👁 Watch session without participating

@@ -74,6 +74,8 @@ interface Props {
   initialShareLink?: string
   initialRole?:      PlayerRole
   initialToken?:     string
+  // B6-6A: when true, enter SpectatorView immediately (set by JoinPage spectator button)
+  initialSpectator?: boolean
   onBack:            () => void
   onDebrief:         (summary: SessionSummary, scenario: ScenarioFull) => void
 }
@@ -81,6 +83,7 @@ interface Props {
 export function ScenarioPlayer({
   scenarioId, initialSessionId, initialPlayerName,
   initialShareLink, initialRole, initialToken,
+  initialSpectator,
   onBack, onDebrief,
 }: Props) {
   const [setupDone,       setSetupDone]       = useState(true)
@@ -94,7 +97,9 @@ export function ScenarioPlayer({
   const [scenarioMeta,    setScenarioMeta]    = useState<ScenarioFull | null>(null)
   const [showFeedback,    setShowFeedback]    = useState(false)
   const [roleSelected,    setRoleSelected]    = useState(!!initialRole)
-  const [isSpectatorMode, setIsSpectatorMode] = useState(false)
+  // B6-6A: initialize from initialSpectator so JoinPage spectator button
+  // enters SpectatorView immediately without showing role selection.
+  const [isSpectatorMode, setIsSpectatorMode] = useState(!!initialSpectator)
   const [showShare,       setShowShare]       = useState(false)
   const [rightTab,        setRightTab]        = useState<'siem' | 'activity'>('siem')
   const [stableScenario,  setStableScenario]  = useState<ScenarioFull | null>(null)
@@ -150,7 +155,10 @@ export function ScenarioPlayer({
   const sieFilter = roleDef?.siemSources ?? []
   // Stable refs for IncidentTimeline — prevents animation flicker on unrelated WS messages
   const stableCompletedIds    = useMemo(() => gameState?.completed_stage_ids ?? [],  [gameState?.completed_stage_ids?.length, gameState?.completed_stage_ids?.join(',')])
-  const stableDecisionHistory = useMemo(() => gameState?.decision_history    ?? [],  [gameState?.decision_history?.length])
+  // B6-6C: depend on serialized history, not just length — the backend
+  // mutates the last entry in-place (adds decided_by / decided_by_role)
+  // which doesn't change length but does change content.
+  const stableDecisionHistory = useMemo(() => gameState?.decision_history    ?? [],  [JSON.stringify(gameState?.decision_history)])
   const dot       = ws.status === 'connected' ? 'bg-emerald-500' : ws.status === 'connecting' ? 'bg-amber-500' : 'bg-red-500'
 
   return (

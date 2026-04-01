@@ -141,9 +141,11 @@ export function useWebSocketGame(
           break
 
         case 'choice_result':
-          setGameState(prev => prev
-            ? { ...prev, phase: msg.phase as GamePhase, attempts_remaining: msg.attempts_remaining }
-            : prev)
+          // B6-6B: Do NOT partially update gameState here. The backend
+          // immediately follows choice_result with a state_sync containing
+          // the full updated state. The old partial update (phase +
+          // attempts_remaining only) left current_stage_id stale, causing
+          // a brief flash of the wrong stage between the two messages.
           setLastChoice({
             isCorrect: msg.is_correct, consequence: msg.consequence,
             technicalExplanation: msg.technical_explanation, actionText: msg.action_text,
