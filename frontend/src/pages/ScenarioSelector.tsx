@@ -128,6 +128,17 @@ const PHASE_COLOR: Record<PhaseId, string> = {
   impact:  'bg-red-950 text-red-400 border-red-900/60',
 }
 
+// ── Completion tracking (reads from same localStorage key as App.tsx) ─────────
+
+const COMPLETED_KEY = 'dwell_completed'
+
+function loadCompleted(): Set<number> {
+  try {
+    const raw = localStorage.getItem(COMPLETED_KEY)
+    return raw ? new Set(JSON.parse(raw) as number[]) : new Set()
+  } catch { return new Set() }
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function ScenarioSelector({
@@ -141,6 +152,8 @@ export function ScenarioSelector({
   const [activePhase, setPhase]      = useState<PhaseId>('all')
   const [diffFilter,  setDiffFilter] = useState('all')
   const [search,      setSearch]     = useState('')
+  // Progress tracking: scenario IDs the player has completed
+  const [completedIds, setCompletedIds] = useState<Set<number>>(() => loadCompleted())
 
   const fetchScenarios = () => {
     setLoading(true)
@@ -152,6 +165,8 @@ export function ScenarioSelector({
   }
 
   useEffect(() => { fetchScenarios() }, [])
+  // Re-read completion state when the component mounts (e.g. returning from debrief)
+  useEffect(() => { setCompletedIds(loadCompleted()) }, [])
 
   // Phase sets per scenario
   const phaseMap = useMemo(() =>
@@ -203,6 +218,12 @@ export function ScenarioSelector({
     }
   }, [playerName, onSelectWithSession])
 
+  // Completion stats
+  const completedCount = useMemo(
+    () => scenarios.filter(s => completedIds.has(s.id)).length,
+    [scenarios, completedIds],
+  )
+
   // ── Layout ──────────────────────────────────────────────────────────────────
 
   return (
@@ -230,6 +251,18 @@ export function ScenarioSelector({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            {/* Progress badge */}
+            {completedCount > 0 && (
+              <div className="flex items-center gap-1.5 bg-emerald-950/40 border border-emerald-800/40
+                              rounded-lg px-2.5 py-1.5 select-none">
+                <span className="text-[9px] font-mono tracking-[0.15em] text-emerald-600 uppercase">
+                  Completed
+                </span>
+                <span className="text-xs font-semibold text-emerald-400 font-mono">
+                  {completedCount}/{scenarios.length}
+                </span>
+              </div>
+            )}
             {/* Operator badge */}
             <div className="flex items-center gap-2 bg-gray-900/60 border border-gray-800
                             rounded-lg px-3 py-1.5 select-none">
@@ -405,6 +438,7 @@ export function ScenarioSelector({
               const phases  = phaseMap.get(s.id) ?? new Set<PhaseId>()
               const ttps    = (s.scenario_structure?.keyTTPs ?? []).slice(0, 4)
               const isStart = starting === s.id
+              const isDone  = completedIds.has(s.id)
 
               // Phase chips to show (exclude 'all', limit to 2 non-impact + impact)
               const nonImpact = [...phases].filter(p => p !== 'all' && p !== 'impact').slice(0, 2)
@@ -428,14 +462,14 @@ export function ScenarioSelector({
                     }
                   `}
                 >
-                  {/* Difficulty top stripe */}
+                  {/* Top stripe — emerald for completed, difficulty color otherwise */}
                   <div className="h-0.5 w-full opacity-60"
-                       style={{ background: diff.barColor }} />
+                       style={{ background: isDone ? '#10b981' : diff.barColor }} />
 
                   {/* Body */}
                   <div className="p-4 pb-2 flex-1">
 
-                    {/* Phase chips */}
+                    {/* Phase chips + completed badge */}
                     <div className="flex flex-wrap gap-1 mb-3 min-h-[20px]">
                       {nonImpact.map(p => (
                         <span key={p}
@@ -448,6 +482,14 @@ export function ScenarioSelector({
                                         px-1.5 py-0.5 rounded border ${PHASE_COLOR.impact}`}>
                         Impact
                       </span>
+                      {isDone && (
+                        <span className="text-[9px] font-mono tracking-wider uppercase
+                                         px-1.5 py-0.5 rounded border
+                                         bg-emerald-950/50 text-emerald-400 border-emerald-800/50
+                                         ml-auto">
+                          ✓
+                        </span>
+                      )}
                     </div>
 
                     {/* Name */}
@@ -486,11 +528,19 @@ export function ScenarioSelector({
 
                   {/* Footer */}
                   <div className="px-4 pb-4 mt-auto">
-                    {/* Diff label + attempts */}
+                    {/* Diff label + completed chip + attempts */}
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className={`text-[10px] font-mono tracking-wider font-semibold ${diff.text}`}>
-                        {diff.label}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-mono tracking-wider font-semibold ${diff.text}`}>
+                          {diff.label}
+                        </span>
+                        {isDone && (
+                          <span className="text-[10px] font-mono tracking-wider font-semibold
+                                           text-emerald-500">
+                            ✓ DONE
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[10px] font-mono text-gray-500">
                       {s.max_attempts}×
                       </span>
@@ -520,7 +570,7 @@ export function ScenarioSelector({
                                            rounded-full animate-spin" />
                           Starting…
                         </>
-                      ) : '▶ Launch'}
+                      ) : isDone ? '↻ Replay' : '▶ Launch'}
                     </div>
                   </div>
                 </button>
