@@ -125,7 +125,10 @@ async def start_session(scenario_id: int, body: StartRequest, request: Request):
                          team_name=body.team_name or None, current_state=initial_state,
                          attempts_remaining=scenario.max_attempts)
         db.add(gs)
-        await db.flush()
+        # B5-5D: flush() → commit() — ensure GameSession row is persisted to DB.
+        # flush() only sends SQL within the transaction; without an explicit
+        # commit the row may be rolled back when the context manager exits.
+        await db.commit()
 
     redis = await get_redis()
     await set_state(redis, session_id, initial_state)
@@ -256,6 +259,10 @@ async def websocket_game(
                     continue
                 try:
                     cur = await get_state(redis, session_id)
+                    # B5-5A: guard against expired session (Redis TTL or manual clear)
+                    if not cur:
+                        await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Session expired"})
+                        continue
                     if is_spectator(cur, client_id):
                         await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Spectators cannot assign roles"})
                         continue
@@ -279,6 +286,10 @@ async def websocket_game(
                     continue
                 try:
                     cur = await get_state(redis, session_id)
+                    # B5-5A: guard against expired session
+                    if not cur:
+                        await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Session expired"})
+                        continue
                     if is_spectator(cur, client_id):
                         await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Spectators cannot begin the simulation"})
                         continue
@@ -292,14 +303,23 @@ async def websocket_game(
 
             # ── suggest_choice ────────────────────────────────────────────────
             elif msg_type == "suggest_choice":
-                stage_id     = msg.get("stage_id", "")
-                option_index = int(msg.get("option_index", -1))
+                stage_id = msg.get("stage_id", "")
+                # B5-5E: validate option_index before acquiring lock
+                try:
+                    option_index = int(msg.get("option_index", -1))
+                except (ValueError, TypeError):
+                    await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Invalid option_index"})
+                    continue
                 locked = await acquire_lock(redis, session_id)
                 if not locked:
                     await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Action in progress"})
                     continue
                 try:
                     cur = await get_state(redis, session_id)
+                    # B5-5A: guard against expired session
+                    if not cur:
+                        await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Session expired"})
+                        continue
                     if is_spectator(cur, client_id):
                         await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Spectators cannot suggest choices"})
                         continue
@@ -313,14 +333,23 @@ async def websocket_game(
 
             # ── make_choice ───────────────────────────────────────────────────
             elif msg_type == "make_choice":
-                stage_id     = msg.get("stage_id", "")
-                option_index = int(msg.get("option_index", -1))
+                stage_id = msg.get("stage_id", "")
+                # B5-5E: validate option_index before acquiring lock
+                try:
+                    option_index = int(msg.get("option_index", -1))
+                except (ValueError, TypeError):
+                    await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Invalid option_index"})
+                    continue
                 locked = await acquire_lock(redis, session_id)
                 if not locked:
                     await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Action in progress"})
                     continue
                 try:
                     cur = await get_state(redis, session_id)
+                    # B5-5A: guard against expired session
+                    if not cur:
+                        await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Session expired"})
+                        continue
                     if is_spectator(cur, client_id):
                         await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Spectators cannot submit decisions"})
                         continue
@@ -335,7 +364,7 @@ async def websocket_game(
                     if new_state.get("decision_history"):
                         new_state["decision_history"][-1]["decided_by"]      = name
                         new_state["decision_history"][-1]["decided_by_role"] = decided_by_role
- 
+
                     await set_state(redis, session_id, new_state)
                     await ws_manager.broadcast_all(session_id, choice_result)
                     if choice_result.get("game_over"):
@@ -366,6 +395,10 @@ async def websocket_game(
                     continue
                 try:
                     cur = await get_state(redis, session_id)
+                    # B5-5A: guard against expired session
+                    if not cur:
+                        await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Session expired"})
+                        continue
                     if is_spectator(cur, client_id):
                         await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": "Spectators cannot use hints"})
                         continue
@@ -429,15 +462,19 @@ async def websocket_game(
                     if cur:
                         cur["saved_at"] = datetime.now(timezone.utc).isoformat()
                         await set_state(redis, session_id, cur)
-                    # M-04/M-05: mark session inactive in DB on graceful exit
-                    async with AsyncSessionFactory() as db:
-                        from sqlalchemy import update as _update
-                        await db.execute(
-                            _update(GameSession)
-                            .where(GameSession.session_id == session_id)
-                            .values(is_active=False, ended_at=datetime.now(timezone.utc))
-                        )
-                        await db.commit()
+                    # B5-5C: only mark session inactive in DB when the last
+                    # player exits — otherwise a single player's save_exit
+                    # terminates the session record for all connected players.
+                    remaining = ws_manager.client_ids(session_id)
+                    if len(remaining) <= 1:
+                        async with AsyncSessionFactory() as db:
+                            from sqlalchemy import update as _update
+                            await db.execute(
+                                _update(GameSession)
+                                .where(GameSession.session_id == session_id)
+                                .values(is_active=False, ended_at=datetime.now(timezone.utc))
+                            )
+                            await db.commit()
                     await ws_manager.send_personal(session_id, client_id, {"type": "session_saved"})
                 except Exception as exc:
                     await ws_manager.send_personal(session_id, client_id, {"type": "error", "message": str(exc)})
@@ -467,5 +504,8 @@ async def websocket_game(
                 {"type": "member_left", "name": name, "client_id": client_id}, exclude_client=client_id)
             if online:
                 await ws_manager.broadcast_presence(session_id, online)
-        # M-03 — always deregister on any disconnect path (including abnormal close)
-        await deregister_active_session(redis, session_id)
+        # B5-5B: only deregister when the last connected client leaves —
+        # otherwise a single disconnect in multiplayer removes the session
+        # from the active index while other players are still connected.
+        if not ws_manager.client_ids(session_id):
+            await deregister_active_session(redis, session_id)
